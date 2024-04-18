@@ -1,0 +1,25 @@
+[core]
+reloadable = true
+order = 0
+
+[package]
+version = "0.1.0"
+category = "Connector"
+title = "Beckhoff Bridge"
+description = "A client for connecting to Beckhoff PLCs"
+authors = ["Loupe"]
+repository = "https://github.com/loupeteam/IsaacSim_Beckhoff_Bridge_Extension"
+keywords = []
+changelog = "docs/CHANGELOG.md"
+readme = "docs/README.md"
+preview_image = "data/preview.png"
+icon = "data/icon.png"
+
+
+[dependencies]
+"omni.kit.uiapp" = {}
+"omni.isaac.ui" = {}
+"omni.isaac.core" = {}
+
+[[python.module]]
+name = "omni.loupe.beckhoff_bridge"
