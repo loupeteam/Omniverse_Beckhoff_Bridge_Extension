@@ -8,8 +8,8 @@ structure_def = (
 
 class AdsDriver():
 
-    def __init__(self):     
-        self._connection = pyads.Connection('39.163.103.49.1.1', pyads.PORT_TC3PLC1)
+    def __init__(self, ams_net_id):     
+        self._connection = pyads.Connection(ams_net_id, pyads.PORT_TC3PLC1)
         self._connection.open()
         self._structure_handle = self._connection.get_handle("MAIN.custom_struct")
 
