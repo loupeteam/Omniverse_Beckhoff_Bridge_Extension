@@ -27,13 +27,11 @@ import threading
 import time
 
 # TODOs:
-# 1. Add a refresh rate input to UI. 
-# 2. Customize the event_type and sender integers. 
-# 3. Pass all the data onto the stream (not just 'var_array'). 
-# 4. Set up a way to customize the data to read, via the UI. 
-# 5. Ensure that thread stops at correct times (i.e. during cleanup, etc). 
-# 6. Maybe find a way to make the stream id and message type global constants (i.e. for other extensions to use). 
-# 7. Allow extension GUI to customize the ADS client parameters for the PLC. 
+# 1. Find a way for data to get fed back into the PLC, from IsaacSim GUI (i.e. HUD things).
+# 2. Pass all the data onto the stream (not just 'var_array'). 
+# 3. Set up a way to customize the data to read, via the UI. 
+# 4. Ensure that thread stops at correct times (i.e. during cleanup, etc). 
+# 5. Maybe find a way to make the stream id and message type global constants (i.e. for other extensions to use). 
 
 class UIBuilder:
     def __init__(self):
@@ -43,17 +41,21 @@ class UIBuilder:
         # Get access to the timeline to control stop/pause/play programmatically
         self._timeline = omni.timeline.get_timeline_interface()
 
-        self._thread_is_alive = True
-        
+        # Internal status flags. 
+        self._thread_is_alive = True   
         self._communication_initialized = False
         self._ui_initialized = False
 
+        # Configuration parameters for the extension.
+        # These are exposed on the UI. 
         self._enable_communication = False
         self._refresh_rate = 20
         self._plc_ams_net_id = '39.163.103.49.1.1'
 
+        # Data stream where the extension will dump the data that it reads from the PLC.
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
 
+        # Thread to perform the cyclic PLC interactions. 
         self._thread = threading.Thread(target=self._update_plc_data)
         self._thread.start()
 
