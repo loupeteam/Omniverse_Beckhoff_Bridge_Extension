@@ -21,5 +21,9 @@ icon = "data/icon.png"
 "omni.isaac.ui" = {}
 "omni.isaac.core" = {}
 
+[python.pipapi]
+requirements = ['pyads']
+use_online_index = true
+
 [[python.module]]
 name = "omni.loupe.beckhoff_bridge"
