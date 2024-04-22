@@ -32,6 +32,7 @@ import time
 # 3. Set up a way to customize the data to read, via the UI. 
 # 4. Ensure that thread stops at correct times (i.e. during cleanup, etc). 
 # 5. Maybe find a way to make the stream id and message type global constants (i.e. for other extensions to use). 
+# 6. Publish to the registry
 
 class UIBuilder:
     def __init__(self):
