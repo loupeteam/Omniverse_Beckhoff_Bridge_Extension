@@ -3,12 +3,12 @@ import time
 
 structure_def = (
     ('var1', pyads.PLCTYPE_BOOL, 1),
-    ('var_array', pyads.PLCTYPE_UDINT, 100)
+    ('var_array', pyads.PLCTYPE_UDINT, 24)
 )
 
 class AdsDriver():
 
-    def __init__(self, ams_net_id):     
+    def __init__(self, ams_net_id):             
         self._connection = pyads.Connection(ams_net_id, pyads.PORT_TC3PLC1)
         self._connection.open()
         self._structure_handle = self._connection.get_handle("MAIN.custom_struct")
