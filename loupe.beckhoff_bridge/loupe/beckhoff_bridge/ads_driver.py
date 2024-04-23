@@ -22,10 +22,13 @@ class AdsDriver():
 
     def read_data(self):
         # self._connection.
-        data = self._connection.read_list_by_name( self._read_names, structure_defs=self._read_struct_def)
-        parsed_data = dict()
-        for name in data.keys():
-            parsed_data = self._parse_name(parsed_data, name, data[name])
+        if self._read_names is not None:
+            data = self._connection.read_list_by_name( self._read_names, structure_defs=self._read_struct_def)
+            parsed_data = dict()
+            for name in data.keys():
+                parsed_data = self._parse_name(parsed_data, name, data[name])
+        else:
+            parsed_data = dict()        
         return parsed_data
         
     def _parse_name(self, name_dict, name, value):
