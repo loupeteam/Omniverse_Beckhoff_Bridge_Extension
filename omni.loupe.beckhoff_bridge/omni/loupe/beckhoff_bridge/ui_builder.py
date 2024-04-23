@@ -20,7 +20,8 @@ import omni.isaac.core.utils.carb as carb_utils
 
 from .ads_driver import AdsDriver
 
-from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME, EXTENSION_EVENT_SENDER_ID, EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
+from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME
+from .Api import EXTENSION_EVENT_SENDER_ID, EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
 
 import threading
 from threading import RLock
@@ -160,15 +161,12 @@ class UIBuilder:
         event_data = event.payload
         variables : list = event_data['variables'] 
         for name in variables:
-            print(f"Received event: {name}")
             self._ads_connector.add_read(name)
 
     def on_write_req_event(self, event ):
-        event_data = event.payload
-        name = event_data['name']
-        value = event_data['value']        
-        print(f"Received write event: {name} with data: {value}")
-        self.queue_write(name, value)
+        variables = event.payload["variables"]
+        for variable in variables:
+            self.queue_write(variable['name'], variable['value'])
 
     def queue_write(self, name, value):
         with self.write_lock:
