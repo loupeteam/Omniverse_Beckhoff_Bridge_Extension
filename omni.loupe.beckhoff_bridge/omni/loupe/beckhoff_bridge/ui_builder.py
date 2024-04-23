@@ -141,28 +141,41 @@ class UIBuilder:
     ####################################
 
     def _update_plc_data(self):
+
+        thread_start_time = time.time()
+
         while self._thread_is_alive:
-            thread_start_time = time.time()
-            if self._ui_initialized:
-                if self._enable_communication:
-                    try:
-                        if not self._communication_initialized:
-                            self._ads_connector = AdsDriver(self._plc_ams_net_id)
-                            self._communication_initialized = True
-                        self._status_field.set_value("Reading Data")
-                        self._data = self._ads_connector.read_structure()
-                        self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
-                    except Exception as e:
-                        print(f"Error reading data from PLC: {e}")
-                        self._status_field.set_value(str(e))
-                        time.sleep(1)
-                else:
-                        self._status_field.set_value("Disabled")
+
+            # Sleep for the refresh rate
             sleepy_time = self._refresh_rate/1000 - (time.time() - thread_start_time)
             if sleepy_time > 0:
                 time.sleep(sleepy_time)
             else:
                 time.sleep(0.1)
+
+            thread_start_time = time.time()
+
+            if not self._ui_initialized:
+                continue
+
+            if not self._enable_communication:
+                self._status_field.set_value("Disabled")
+                continue
+
+            try:
+
+                if not self._communication_initialized:
+                    self._ads_connector = AdsDriver(self._plc_ams_net_id)
+                    self._communication_initialized = True
+
+                self._status_field.set_value("Reading Data")
+                self._data = self._ads_connector.read_structure()
+                self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
+
+            except Exception as e:
+                print(f"Error reading data from PLC: {e}")
+                self._status_field.set_value(str(e))
+                time.sleep(1)
 
     ####################################
     ####################################
