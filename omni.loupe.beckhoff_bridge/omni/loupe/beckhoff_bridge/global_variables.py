@@ -15,6 +15,7 @@ EXTENSION_NAME = "omni.loupe.beckhoff_bridge"
 EXTENSION_DESCRIPTION = "Connector for Beckhoff PLCs"
 
 EXTENSION_EVENT_SENDER_ID = 500
+EVENT_TYPE_DATA_INIT = carb.events.type_from_string("omni.loupe.beckhoff_bridge.DATA_INIT")
 EVENT_TYPE_DATA_READ = carb.events.type_from_string("omni.loupe.beckhoff_bridge.DATA_READ")
 EVENT_TYPE_DATA_READ_REQ = carb.events.type_from_string("omni.loupe.beckhoff_bridge.DATA_READ_REQ")
 EVENT_TYPE_DATA_WRITE_REQ = carb.events.type_from_string("omni.loupe.beckhoff_bridge.DATA_WRITE_REQ")

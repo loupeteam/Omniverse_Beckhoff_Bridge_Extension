@@ -10,24 +10,23 @@
 
 import omni.ui as ui
 import omni.timeline
-from omni.usd import StageEventType
 
-from omni.isaac.ui.ui_utils import get_style, btn_builder, cb_builder, str_builder, int_builder
-from omni.isaac.ui import StringField, IntField, Button
+from omni.isaac.ui.ui_utils import get_style, cb_builder, str_builder
+from omni.isaac.ui import StringField, IntField, Button, TextBlock
 from omni.isaac.ui.element_wrappers import CollapsableFrame
-# from omni.isaac.ui import Checkbox
-from omni.isaac.ui.element_wrappers.core_connectors import LoadButton, ResetButton
 
 from carb.settings import get_settings
 import omni.isaac.core.utils.carb as carb_utils
 
-import os
-import numpy as np
-
 from .ads_driver import AdsDriver
-from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME, EXTENSION_EVENT_SENDER_ID, EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ
+
+from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME, EXTENSION_EVENT_SENDER_ID, EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
 
 import threading
+from threading import RLock
+
+import json
+
 import time
 
 # TODOs:
@@ -37,7 +36,8 @@ import time
 # 4. Ensure that thread stops at correct times (i.e. during cleanup, etc). 
 # 5. Maybe find a way to make the stream id and message type global constants (i.e. for other extensions to use). 
 # 6. Publish to the registry
-
+# 7. Add mapping to the model
+ 
 class UIBuilder:
     def __init__(self):
         # UI elements created using a UIElementWrapper instance
@@ -58,12 +58,19 @@ class UIBuilder:
         # These are exposed on the UI. 
         self._enable_communication = self.get_setting( 'ENABLE_COMMUNICATION', False ) 
         self._refresh_rate = self.get_setting( 'REFRESH_RATE', 20 )
-        self._plc_ams_net_id = self.get_setting( 'PLC_AMS_NET_ID', '127.0.0.1.1.1')
 
         # Data stream where the extension will dump the data that it reads from the PLC.
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
 
-        # Thread to perform the cyclic PLC interactions. 
+        self._ads_connector = AdsDriver(self.get_setting( 'PLC_AMS_NET_ID', '127.0.0.1.1.1'))
+        
+        self.write_queue = dict()
+        self.write_lock = RLock()
+
+        self.read_req = self._event_stream.create_subscription_to_push_by_type(EVENT_TYPE_DATA_READ_REQ, self.on_read_req_event)
+        self.write_req = self._event_stream.create_subscription_to_push_by_type(EVENT_TYPE_DATA_WRITE_REQ, self.on_write_req_event)
+        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': {}})
+
         self._thread = threading.Thread(target=self._update_plc_data)
         self._thread.start()
 
@@ -75,6 +82,8 @@ class UIBuilder:
         """Callback for when the UI is opened from the toolbar. 
         This is called directly after build_ui().
         """
+        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': {}})
+
         if(not self._thread_is_alive):
             self._thread_is_alive = True
             self._thread = threading.Thread(target=self._update_plc_data)
@@ -107,6 +116,7 @@ class UIBuilder:
         Perform any necessary cleanup such as removing active callback functions
         Buttons imported from omni.isaac.ui.element_wrappers implement a cleanup function that should be called
         """
+        self.read_req.unsubscribe()
         self._thread_is_alive = False
         self._thread.join()
 
@@ -121,7 +131,7 @@ class UIBuilder:
             with ui.VStack(style=get_style(), spacing=5, height=0):
                 self._enable_communication_checkbox = cb_builder(label='Enable ADS Client', type='checkbox', default_val=self._enable_communication, on_clicked_fn=self._toggle_communication_enable)
                 self._refresh_rate_field = IntField(label='Refresh Rate (ms)', default_value=self._refresh_rate, lower_limit=10, upper_limit=10000, on_value_changed_fn=self._on_refresh_rate_changed)
-                self._plc_ams_net_id_field = StringField(label="PLC AMS Net Id", default_value=self._plc_ams_net_id, on_value_changed_fn=self._on_plc_ams_net_id_changed)
+                self._plc_ams_net_id_field = StringField(label="PLC AMS Net Id", default_value=self._ads_connector.ams_net_id, on_value_changed_fn=self._on_plc_ams_net_id_changed)
                 with ui.HStack():
                     Button("Settings", "Load", on_click_fn=self.load_settings)
                     Button("", "Save", on_click_fn=self.save_settings)
@@ -130,7 +140,13 @@ class UIBuilder:
 
         with status_frame:
             with ui.VStack(style=get_style(), spacing=5, height=0):
-                self._status_field = str_builder(label='Status', type='stringfield', default_val='n/a', read_only=True)
+                self._status_field = StringField(label='Status', default_value='n/a', read_only=True)
+
+        monitor_frame = CollapsableFrame("Monitor", collapsed=False)
+
+        with monitor_frame:
+            with ui.VStack(style=get_style(), spacing=5, height=0):
+                self._monitor_field = TextBlock(label='Variables', num_lines=10)
 
         self._ui_initialized = True
 
@@ -139,6 +155,24 @@ class UIBuilder:
     # UTILITY FUNCTIONS
     ####################################
     ####################################
+
+    def on_read_req_event(self, event ):
+        event_data = event.payload
+        variables : list = event_data['variables'] 
+        for name in variables:
+            print(f"Received event: {name}")
+            self._ads_connector.add_read(name)
+
+    def on_write_req_event(self, event ):
+        event_data = event.payload
+        name = event_data['name']
+        value = event_data['value']        
+        print(f"Received write event: {name} with data: {value}")
+        self.queue_write(name, value)
+
+    def queue_write(self, name, value):
+        with self.write_lock:
+            self.write_queue[name] = value
 
     def _update_plc_data(self):
 
@@ -164,17 +198,29 @@ class UIBuilder:
 
             try:
 
-                if not self._communication_initialized:
-                    self._ads_connector = AdsDriver(self._plc_ams_net_id)
+                if(not self._communication_initialized):
+                    self._ads_connector.connect()
                     self._communication_initialized = True
 
-                self._status_field.set_value("Reading Data")
-                self._data = self._ads_connector.read_structure()
-                self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
+                # Write data to the PLC if there is data to write
+                try:
+                    if self.write_queue:                                             
+                        with self.write_lock:
+                            values = self.write_queue
+                            self.write_queue = dict()
+                        self._ads_connector.write_data(values)
+                except Exception as e:
+                    self._status_field.set_value(f"Error writing data to PLC: {e}")
 
+                # Read data from the PLC
+                #measure the time it takes to read data
+                self._data = self._ads_connector.read_data()
+                self._status_field.set_value("Reading Data OK")
+                self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
+                json_formatted_str = json.dumps(self._data, indent=4)
+                self._monitor_field.set_text(json_formatted_str)
             except Exception as e:
-                print(f"Error reading data from PLC: {e}")
-                self._status_field.set_value(str(e))
+                self._status_field.set_value(f"Error reading data from PLC: {e}")
                 time.sleep(1)
 
     ####################################
@@ -194,9 +240,8 @@ class UIBuilder:
         carb_utils.set_carb_setting(self.settings_interface, "/persistent/" + EXTENSION_NAME + "/" + name, value )
 
     def _on_plc_ams_net_id_changed(self, value):
-        self._plc_ams_net_id = value
+        self._ads_connector.ams_net_id = value
         self._communication_initialized = False
-
 
     def _on_refresh_rate_changed(self, value):
         self._refresh_rate = value
@@ -208,15 +253,16 @@ class UIBuilder:
 
     def save_settings(self):
         self.set_setting('REFRESH_RATE', self._refresh_rate)
-        self.set_setting('PLC_AMS_NET_ID', self._plc_ams_net_id)
+        self.set_setting('PLC_AMS_NET_ID', self._ads_connector.ams_net_id)
         self.set_setting('ENABLE_COMMUNICATION', self._enable_communication)
 
     def load_settings(self):
         self._refresh_rate = self.get_setting('REFRESH_RATE')
-        self._plc_ams_net_id = self.get_setting('PLC_AMS_NET_ID')
+        self._ads_connector.ams_net_id = self.get_setting('PLC_AMS_NET_ID')
         self._enable_communication = self.get_setting('ENABLE_COMMUNICATION')
 
         self._refresh_rate_field.set_value(self._refresh_rate)
-        self._plc_ams_net_id_field.set_value(self._plc_ams_net_id)
+        self._plc_ams_net_id_field.set_value(self._ads_connector.ams_net_id)
         self._enable_communication_checkbox.set_value(self._enable_communication)
+        self._communication_initialized = False
 
