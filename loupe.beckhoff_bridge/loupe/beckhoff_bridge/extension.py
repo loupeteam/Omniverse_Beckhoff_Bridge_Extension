@@ -96,7 +96,6 @@ class TestExtension(omni.ext.IExt):
             self._usd_context = None
             self._stage_event_sub = None
             self._timeline_event_sub = None
-            self.ui_builder.cleanup()
 
     def _build_ui(self):
         with self._window.frame:
@@ -133,7 +132,6 @@ class TestExtension(omni.ext.IExt):
         if event.type == int(StageEventType.OPENED) or event.type == int(StageEventType.CLOSED):
             # stage was opened or closed, cleanup
             self._physx_subscription = None
-            self.ui_builder.cleanup()
 
         self.ui_builder.on_stage_event(event)
 

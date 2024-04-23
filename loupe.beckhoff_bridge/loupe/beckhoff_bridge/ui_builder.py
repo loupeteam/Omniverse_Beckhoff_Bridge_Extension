@@ -11,8 +11,8 @@
 import omni.ui as ui
 import omni.timeline
 
-from omni.isaac.ui.ui_utils import get_style, cb_builder, str_builder
 from omni.isaac.ui import StringField, IntField, Button, TextBlock
+from omni.isaac.ui.ui_utils import get_style, cb_builder
 from omni.isaac.ui.element_wrappers import CollapsableFrame
 
 from carb.settings import get_settings
@@ -20,7 +20,7 @@ import omni.isaac.core.utils.carb as carb_utils
 
 from .ads_driver import AdsDriver
 
-from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME
+from .global_variables import EXTENSION_NAME
 from .Api import EXTENSION_EVENT_SENDER_ID, EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
 
 import threading
@@ -30,14 +30,10 @@ import json
 
 import time
 
-# TODOs:
-# 1. Find a way for data to get fed back into the PLC, from IsaacSim GUI (i.e. HUD things).
-# 2. Pass all the data onto the stream (not just 'var_array'). 
-# 3. Set up a way to customize the data to read, via the UI. 
-# 4. Ensure that thread stops at correct times (i.e. during cleanup, etc). 
-# 5. Maybe find a way to make the stream id and message type global constants (i.e. for other extensions to use). 
-# 6. Publish to the registry
-# 7. Add mapping to the model
+# TODOs: 
+# 1. remove omni from name
+# 2. Publish to the registry
+# 3. Add mapping to the model
  
 class UIBuilder:
     def __init__(self):
@@ -49,7 +45,7 @@ class UIBuilder:
 
         # Get the settings interface
         self.settings_interface = get_settings()
-        
+         
         # Internal status flags. 
         self._thread_is_alive = True   
         self._communication_initialized = False
@@ -187,11 +183,9 @@ class UIBuilder:
 
             thread_start_time = time.time()
 
-            if not self._ui_initialized:
-                continue
-
             if not self._enable_communication:
-                self._status_field.set_value("Disabled")
+                if self._ui_initialized:
+                    self._status_field.set_value("Disabled")
                 continue
 
             try:
@@ -208,17 +202,20 @@ class UIBuilder:
                             self.write_queue = dict()
                         self._ads_connector.write_data(values)
                 except Exception as e:
-                    self._status_field.set_value(f"Error writing data to PLC: {e}")
+                    if self._ui_initialized:
+                        self._status_field.set_value(f"Error writing data to PLC: {e}")
 
                 # Read data from the PLC
                 #measure the time it takes to read data
                 self._data = self._ads_connector.read_data()
-                self._status_field.set_value("Reading Data OK")
                 self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
-                json_formatted_str = json.dumps(self._data, indent=4)
-                self._monitor_field.set_text(json_formatted_str)
+                if self._ui_initialized:
+                    self._status_field.set_value("Reading Data OK")
+                    json_formatted_str = json.dumps(self._data, indent=4)
+                    self._monitor_field.set_text(json_formatted_str)
             except Exception as e:
-                self._status_field.set_value(f"Error reading data from PLC: {e}")
+                if self._ui_initialized:
+                    self._status_field.set_value(f"Error reading data from PLC: {e}")
                 time.sleep(1)
 
     ####################################

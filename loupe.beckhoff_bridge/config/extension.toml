@@ -26,4 +26,4 @@ requirements = ['pyads']
 use_online_index = true
 
 [[python.module]]
-name = "omni.loupe.beckhoff_bridge"
+name = "loupe.beckhoff_bridge"

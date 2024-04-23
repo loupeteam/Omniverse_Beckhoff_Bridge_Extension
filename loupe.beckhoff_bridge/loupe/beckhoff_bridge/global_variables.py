@@ -10,6 +10,6 @@
 
 
 EXTENSION_TITLE = "beckhoff_bridge"
-EXTENSION_NAME = "omni.loupe.beckhoff_bridge"
+EXTENSION_NAME = "loupe.beckhoff_bridge"
 EXTENSION_DESCRIPTION = "Connector for Beckhoff PLCs"
 
