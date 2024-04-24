@@ -171,6 +171,7 @@ class UIBuilder:
     def _update_plc_data(self):
 
         thread_start_time = time.time()
+        status_update_time = time.time()
 
         while self._thread_is_alive:
 
@@ -183,18 +184,25 @@ class UIBuilder:
 
             thread_start_time = time.time()
 
+            # Check if the communication is enabled
             if not self._enable_communication:
                 if self._ui_initialized:
                     self._status_field.set_value("Disabled")
                 continue
 
+            # Catch exceptions and log them to the status field
             try:
 
+                if status_update_time < time.time():
+                    self._status_field.set_value("Data Exchange Active")
+
+                # Start the communication if it is not initialized
                 if(not self._communication_initialized):
                     self._ads_connector.connect()
                     self._communication_initialized = True
 
                 # Write data to the PLC if there is data to write
+                # If there is an exception, log it to the status field but continue reading data
                 try:
                     if self.write_queue:                                             
                         with self.write_lock:
@@ -204,18 +212,23 @@ class UIBuilder:
                 except Exception as e:
                     if self._ui_initialized:
                         self._status_field.set_value(f"Error writing data to PLC: {e}")
+                        status_update_time = time.time() + 1
 
                 # Read data from the PLC
-                #measure the time it takes to read data
                 self._data = self._ads_connector.read_data()
+
+                # Push the data to the event stream
                 self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
+
+                # Update the monitor field
                 if self._ui_initialized:
-                    self._status_field.set_value("Reading Data OK")
                     json_formatted_str = json.dumps(self._data, indent=4)
                     self._monitor_field.set_text(json_formatted_str)
+
             except Exception as e:
                 if self._ui_initialized:
                     self._status_field.set_value(f"Error reading data from PLC: {e}")
+                    status_update_time = time.time() + 1
                 time.sleep(1)
 
     ####################################
