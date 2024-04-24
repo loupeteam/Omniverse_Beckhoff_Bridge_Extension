@@ -1,7 +1,6 @@
 import carb.events
 import omni.kit.app
 
-EXTENSION_EVENT_SENDER_ID = 500
 EVENT_TYPE_DATA_INIT = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_INIT")
 EVENT_TYPE_DATA_READ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_READ")
 EVENT_TYPE_DATA_READ_REQ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_READ_REQ")

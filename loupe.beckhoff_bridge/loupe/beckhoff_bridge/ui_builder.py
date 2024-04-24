@@ -21,7 +21,7 @@ import omni.isaac.core.utils.carb as carb_utils
 from .ads_driver import AdsDriver
 
 from .global_variables import EXTENSION_NAME
-from .Api import EXTENSION_EVENT_SENDER_ID, EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
+from .Api import EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
 
 import threading
 from threading import RLock
@@ -65,7 +65,7 @@ class UIBuilder:
 
         self.read_req = self._event_stream.create_subscription_to_push_by_type(EVENT_TYPE_DATA_READ_REQ, self.on_read_req_event)
         self.write_req = self._event_stream.create_subscription_to_push_by_type(EVENT_TYPE_DATA_WRITE_REQ, self.on_write_req_event)
-        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': {}})
+        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, payload={'data': {}})
 
         self._thread = threading.Thread(target=self._update_plc_data)
         self._thread.start()
@@ -78,7 +78,7 @@ class UIBuilder:
         """Callback for when the UI is opened from the toolbar. 
         This is called directly after build_ui().
         """
-        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': {}})
+        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, payload={'data': {}})
 
         if(not self._thread_is_alive):
             self._thread_is_alive = True
@@ -218,7 +218,7 @@ class UIBuilder:
                 self._data = self._ads_connector.read_data()
 
                 # Push the data to the event stream
-                self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, sender=EXTENSION_EVENT_SENDER_ID, payload={'data': self._data})
+                self._event_stream.push(event_type=EVENT_TYPE_DATA_READ, payload={'data': self._data})
 
                 # Update the monitor field
                 if self._ui_initialized:
