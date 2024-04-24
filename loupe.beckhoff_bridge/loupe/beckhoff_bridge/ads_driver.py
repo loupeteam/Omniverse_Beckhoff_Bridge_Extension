@@ -22,7 +22,7 @@ class AdsDriver():
 
     def read_data(self):
         # self._connection.
-        if self._read_names is not None:
+        if self._read_names.__len__() > 0:
             data = self._connection.read_list_by_name( self._read_names, structure_defs=self._read_struct_def)
             parsed_data = dict()
             for name in data.keys():
