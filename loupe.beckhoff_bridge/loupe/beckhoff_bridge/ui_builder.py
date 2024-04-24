@@ -113,6 +113,7 @@ class UIBuilder:
         Buttons imported from omni.isaac.ui.element_wrappers implement a cleanup function that should be called
         """
         self.read_req.unsubscribe()
+        self.write_req.unsubscribe()    
         self._thread_is_alive = False
         self._thread.join()
 
