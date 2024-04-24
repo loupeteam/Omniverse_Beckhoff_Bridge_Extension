@@ -31,9 +31,8 @@ import json
 import time
 
 # TODOs: 
-# 1. remove omni from name
-# 2. Publish to the registry
-# 3. Add mapping to the model
+# - Publish to the registry
+# - Add mapping to the model
  
 class UIBuilder:
     def __init__(self):
