@@ -7,7 +7,7 @@ EVENT_TYPE_DATA_READ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_
 EVENT_TYPE_DATA_READ_REQ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_READ_REQ")
 EVENT_TYPE_DATA_WRITE_REQ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_WRITE_REQ")
 
-class BeckhoffBridge:
+class Manager:
     """
     BeckhoffBridge class provides an interface for interacting with the Beckhoff Bridge Extension.
     It can be used in Python scripts to read and write variables.

@@ -21,7 +21,7 @@ import omni.isaac.core.utils.carb as carb_utils
 from .ads_driver import AdsDriver
 
 from .global_variables import EXTENSION_NAME
-from .Api import EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
+from .BeckhoffBridge import EVENT_TYPE_DATA_READ, EVENT_TYPE_DATA_READ_REQ, EVENT_TYPE_DATA_WRITE_REQ, EVENT_TYPE_DATA_INIT
 
 import threading
 from threading import RLock
