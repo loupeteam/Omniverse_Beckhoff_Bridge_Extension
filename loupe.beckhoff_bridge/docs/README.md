@@ -25,11 +25,11 @@ The user extension specifies what data to read using the API available in the `l
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
 extension_path = get_extension_path_from_name('loupe.beckhoff_bridge')
 sys.path.append(extension_path)
-from loupe.beckhoff_bridge import Api
+from loupe.beckhoff_bridge import BeckhoffBridge
 
         
 # Create a subscription to the data read event
-beckhoff_bridge = Api.BeckhoffBridge()
+beckhoff_bridge = BeckhoffBridge.Manager()
 beckhoff_bridge.register_init_callback(on_beckoff_init)
 beckhoff_bridge.register_data_callback(on_message)
 
