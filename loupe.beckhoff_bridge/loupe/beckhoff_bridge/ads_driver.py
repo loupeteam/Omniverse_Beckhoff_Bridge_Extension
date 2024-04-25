@@ -35,7 +35,7 @@ class AdsDriver():
             structure_def (optional): The structure definition of the data.
 
         """
-        if(name not in self._read_names):
+        if name not in self._read_names:
             self._read_names.append(name)
 
         if structure_def is not None:
@@ -47,12 +47,12 @@ class AdsDriver():
         Writes data to the target device.
 
         Args:
-            data (dict): A dictionary containing the data to be written. 
+            data (dict): A dictionary containing the data to be written to the PLC
             e.g.
             data = {'MAIN.b_Execute': False, 'MAIN.str_TestString': 'Goodbye World', 'MAIN.r32_TestReal': 54.321}
 
         """
-        self._connection.write_list_by_name( data )
+        self._connection.write_list_by_name(data)
 
     def read_data(self):
         """
@@ -63,7 +63,7 @@ class AdsDriver():
 
         """
         if self._read_names.__len__() > 0:
-            data = self._connection.read_list_by_name( self._read_names, structure_defs=self._read_struct_def)
+            data = self._connection.read_list_by_name(self._read_names, structure_defs=self._read_struct_def)
             parsed_data = dict()
             for name in data.keys():
                 parsed_data = self._parse_name(parsed_data, name, data[name])

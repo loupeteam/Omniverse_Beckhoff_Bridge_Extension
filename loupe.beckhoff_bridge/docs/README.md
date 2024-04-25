@@ -1,6 +1,9 @@
 # Beckhoff Bridge
 
-The Beckhoff Bridge is a software that allows to communicate with Beckhoff PLCs using the ADS protocol.
+The Beckhoff Bridge is an [NVIDIA Omniverse](https://www.nvidia.com/en-us/omniverse/) extension to communicate with `[Beckhoff PLCs](https://www.beckhoff.com/en-en/)` using the [ADS protocol](https://infosys.beckhoff.com/english.php?content=../content/1033/cx8190_hw/5091854987.html&id=).
+# Installation
+
+Install this extension via Omniverse's [Extensions Manager](https://docs.omniverse.nvidia.com/extensions/latest/ext_core/ext_extension-manager.html#)
 
 ## Enabling the Extension
 
@@ -34,19 +37,18 @@ beckhoff_bridge.register_init_callback(on_beckoff_init)
 beckhoff_bridge.register_data_callback(on_message)
 
 def on_beckoff_init( event ):
-    # Send the variable names we care about
+    # Create a list of variable names to be read cyclically, and add to Manager
     variables = [   'MAIN.custom_struct.var1', 
                     'MAIN.custom_struct.var_array[0]', 
                     'MAIN.custom_struct.var_array[1]']
 
-    # Add the variables to be read cyclically
     beckhoff_bridge.add_cyclic_read_variables(variables)
 
-    # Write a 1 to the variable 'MAIN.custom_struct.var1'
+    # Write the value `1` to PLC variable 'MAIN.custom_struct.var1'
     beckhoff_bridge.write_variable('MAIN.custom_struct.var1', 1)
 
 def on_message( event ):
-    # Get the data from the event
+    # Read the event data, which includes values for the PLC variables requested
     data = event.payload['data']['MAIN']['custom_struct']['var_array']
 
 ```
