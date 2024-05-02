@@ -6,8 +6,7 @@ info@loupe.team
 
 # Description
 
-Beckhoff Bridge Extension for Isaac Sim
-
+Beckhoff Bridge Extension for Isaac Sim. Developed using [pyads](https://github.com/stlehmann/pyads).
 # Documentation
 
 Usage can be found in the extension readme file [here](loupe.beckhoff_bridge/docs/README.md).
@@ -27,3 +26,4 @@ This software contains source code provided by NVIDIA Corporation. This code is 
 
 This software is intended for use with NVIDIA Isaac Sim, which is subject to the [NVIDIA Omniverse License Agreement](https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html) for use and distribution.
 
+This software also relies on [pyads](https://github.com/stlehmann/pyads), which is licensed under the MIT license.
