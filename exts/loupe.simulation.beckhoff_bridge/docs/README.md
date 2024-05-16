@@ -6,7 +6,7 @@ The Beckhoff Bridge is an [NVIDIA Omniverse](https://www.nvidia.com/en-us/omnive
 
 ### Install from registry
 
-This is the preferred method. Open up the extensions manager by navigating to `Window / Extensions`. The extension is available as a THIRD PARTY extension. Search for `BECKHOFF BRIDGE`, and click the slider to Enable it. Once enabled, the extension will show up as an option in the top menu banner. 
+This is the preferred method. Open up the extensions manager by navigating to `Window / Extensions`. The extension is available as a "Third Party" extension. Search for `Beckhoff Bridge`, and click the slider to Enable it. Once enabled, the extension will be available as an option in the top menu banner of the Omniverse app.
 
 ### Install from source
 
