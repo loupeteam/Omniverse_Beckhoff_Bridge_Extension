@@ -6,7 +6,7 @@ info@loupe.team
 
 # Description
 
-This is an extension that connects Beckhoff PLCs into the Omniverse ecosystem. It leverages [pyads](https://github.com/stlehmann/pyads) to set up an ADS client for communicating with the PLC. 
+This is an extension that connects Beckhoff PLCs into the Omniverse ecosystem. It leverages [pyads](https://github.com/stlehmann/pyads) to set up an ADS client for communicating with PLCs. 
 
 # Documentation
 
