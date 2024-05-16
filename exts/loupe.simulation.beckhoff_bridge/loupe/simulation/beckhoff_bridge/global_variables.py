@@ -10,6 +10,6 @@
 
 
 EXTENSION_TITLE = "Beckhoff Bridge"
-EXTENSION_NAME = "loupe.beckhoff_bridge"
+EXTENSION_NAME = "loupe.simulation.beckhoff_bridge"
 EXTENSION_DESCRIPTION = "Bridge to Beckhoff PLCs"
 

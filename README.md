@@ -10,7 +10,7 @@ This is an extension that connects Beckhoff PLCs into the Omniverse ecosystem. I
 
 # Documentation
 
-Detailed documentation can be found in the extension readme file [here](loupe.beckhoff_bridge/docs/README.md).
+Detailed documentation can be found in the extension readme file [here](exts/loupe.simulation.beckhoff_bridge/docs/README.md).
 
 # Licensing
 

@@ -45,10 +45,10 @@ Once variable reads are occurring, the `Monitor` pane will show a JSON string wi
 
 ### Performing read/write operations
 
-The variables on the PLC that should be read or written are specified in a custom user extension or app that uses the API available from the `loupe.beckhoff_bridge` module.
+The variables on the PLC that should be read or written are specified in a custom user extension or app that uses the API available from the `loupe.simulation.beckhoff_bridge` module.
 
 ```python
-from loupe.beckhoff_bridge import BeckhoffBridge
+from loupe.simulation.beckhoff_bridge import BeckhoffBridge
       
 # Instantiate the bridge and register lifecycle subscriptions
 beckhoff_bridge = BeckhoffBridge.Manager()
