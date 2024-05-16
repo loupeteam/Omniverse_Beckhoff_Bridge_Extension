@@ -135,4 +135,25 @@ class AdsDriver():
         self._connection = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
         self._connection.open()
 
+    def disconnect(self):
+        """
+        Disconnects from the target device.
+
+        """
+        self._connection.close()
+
+    def is_connected(self):
+        """
+        Returns the connection state.
+
+        Returns:
+            bool: True if the connection is open, False otherwise.
+
+        """
+        try:
+            adsState, deviceState = self._connection.read_state()
+            return True
+        except Exception as e:
+            return False
+
 

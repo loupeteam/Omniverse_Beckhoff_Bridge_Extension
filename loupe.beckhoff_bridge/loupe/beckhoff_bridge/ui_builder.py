@@ -192,18 +192,23 @@ class UIBuilder:
             if not self._enable_communication:
                 if self._ui_initialized:
                     self._status_field.model.set_value("Disabled")
+                    self._monitor_field.model.set_value("{}")
                 continue
 
             # Catch exceptions and log them to the status field
             try:
-
-                if status_update_time < time.time():
-                    self._status_field.model.set_value("Data Exchange Active")
-
                 # Start the communication if it is not initialized
-                if(not self._communication_initialized):
+                if (not self._communication_initialized) and (self._enable_communication):
                     self._ads_connector.connect()
                     self._communication_initialized = True
+                elif (self._communication_initialized) and (not self._ads_connector.is_connected()):
+                    self._ads_connector.disconnect()
+
+                if status_update_time < time.time():
+                    if self._ads_connector.is_connected():
+                        self._status_field.model.set_value("Connected")
+                    else:
+                        self._status_field.model.set_value("Attempting to connect...")
 
                 # Write data to the PLC if there is data to write
                 # If there is an exception, log it to the status field but continue reading data
@@ -227,7 +232,7 @@ class UIBuilder:
                 # Update the monitor field
                 if self._ui_initialized:
                     json_formatted_str = json.dumps(self._data, indent=4)
-                    self._monitor_field.set_text(json_formatted_str)
+                    self._monitor_field.model.set_value(json_formatted_str)
 
             except Exception as e:
                 if self._ui_initialized:
