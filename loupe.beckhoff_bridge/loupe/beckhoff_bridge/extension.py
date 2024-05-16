@@ -58,7 +58,7 @@ class TestExtension(omni.ext.IExt):
         self._models = {}
         self._ext_id = ext_id
         self._menu_items = [
-            MenuItemDescription(name=EXTENSION_TITLE, onclick_fn=lambda a=weakref.proxy(self): a._menu_callback())
+            MenuItemDescription(name="Open Bridge Settings", onclick_fn=lambda a=weakref.proxy(self): a._menu_callback())
         ]
         add_menu_items(self._menu_items, EXTENSION_TITLE)
 
