@@ -3,7 +3,7 @@
   Copyright (c) 2024 Loupe
   https://loupe.team
   
-  This file is part of IsaacSim_Beckhoff_Bridge_Extension, licensed under the MIT License.
+  This file is part of Omniverse_Beckhoff_Bridge_Extension, licensed under the MIT License.
   
 '''
 
@@ -11,10 +11,10 @@ from typing import Callable
 import carb.events
 import omni.kit.app
 
-EVENT_TYPE_DATA_INIT = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_INIT")
-EVENT_TYPE_DATA_READ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_READ")
-EVENT_TYPE_DATA_READ_REQ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_READ_REQ")
-EVENT_TYPE_DATA_WRITE_REQ = carb.events.type_from_string("loupe.beckhoff_bridge.DATA_WRITE_REQ")
+EVENT_TYPE_DATA_INIT = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_INIT")
+EVENT_TYPE_DATA_READ = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_READ")
+EVENT_TYPE_DATA_READ_REQ = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_READ_REQ")
+EVENT_TYPE_DATA_WRITE_REQ = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_WRITE_REQ")
 
 class Manager:
     """

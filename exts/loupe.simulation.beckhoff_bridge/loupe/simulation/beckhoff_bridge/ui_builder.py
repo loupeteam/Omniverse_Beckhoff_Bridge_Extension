@@ -11,12 +11,7 @@
 import omni.ui as ui
 import omni.timeline
 
-from omni.isaac.ui import StringField, IntField, Button, TextBlock
-from omni.isaac.ui.ui_utils import get_style, cb_builder
-from omni.isaac.ui.element_wrappers import CollapsableFrame
-
 from carb.settings import get_settings
-import omni.isaac.core.utils.carb as carb_utils
 
 from .ads_driver import AdsDriver
 
@@ -29,10 +24,6 @@ from threading import RLock
 import json
 
 import time
-
-# TODOs: 
-# - Publish to the registry
-# - Add mapping to the model
  
 class UIBuilder:
     def __init__(self):
@@ -110,7 +101,6 @@ class UIBuilder:
         """
         Called when the stage is closed or the extension is hot reloaded.
         Perform any necessary cleanup such as removing active callback functions
-        Buttons imported from omni.isaac.ui.element_wrappers implement a cleanup function that should be called
         """
         self.read_req.unsubscribe()
         self.write_req.unsubscribe()    
@@ -122,28 +112,42 @@ class UIBuilder:
         Build a custom UI tool to run your extension.  
         This function will be called any time the UI window is closed and reopened.
         """
-        configuration_frame = CollapsableFrame("Configuration", collapsed=False)
+        with ui.CollapsableFrame("Configuration", collapsed=False):
+            with ui.VStack(spacing=5, height=0):
 
-        with configuration_frame:
-            with ui.VStack(style=get_style(), spacing=5, height=0):
-                self._enable_communication_checkbox = cb_builder(label='Enable ADS Client', type='checkbox', default_val=self._enable_communication, on_clicked_fn=self._toggle_communication_enable)
-                self._refresh_rate_field = IntField(label='Refresh Rate (ms)', default_value=self._refresh_rate, lower_limit=10, upper_limit=10000, on_value_changed_fn=self._on_refresh_rate_changed)
-                self._plc_ams_net_id_field = StringField(label="PLC AMS Net Id", default_value=self._ads_connector.ams_net_id, on_value_changed_fn=self._on_plc_ams_net_id_changed)
-                with ui.HStack():
-                    Button("Settings", "Load", on_click_fn=self.load_settings)
-                    Button("", "Save", on_click_fn=self.save_settings)
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("Enable ADS Client")
+                    self._enable_communication_checkbox = ui.CheckBox(ui.SimpleBoolModel(self._enable_communication))
+                    self._enable_communication_checkbox.model.add_value_changed_fn(self._toggle_communication_enable)
+                
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("Refresh Rate (ms)")
+                    self._refresh_rate_field = ui.IntField(ui.SimpleIntModel(self._refresh_rate))
+                    self._refresh_rate_field.model.set_min(10)
+                    self._refresh_rate_field.model.set_max(10000)
+                    self._refresh_rate_field.model.add_value_changed_fn(self._on_refresh_rate_changed)
+                                   
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("PLC AMS Net Id")
+                    self._plc_ams_net_id_field = ui.StringField(ui.SimpleStringModel(self._ads_connector.ams_net_id))
+                    self._plc_ams_net_id_field.model.add_value_changed_fn(self._on_plc_ams_net_id_changed)
 
-        status_frame = CollapsableFrame("Status", collapsed=False)
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("Settings")
+                    ui.Button("Load", clicked_fn=self.load_settings)
+                    ui.Button("Save", clicked_fn=self.save_settings)
 
-        with status_frame:
-            with ui.VStack(style=get_style(), spacing=5, height=0):
-                self._status_field = StringField(label='Status', default_value='n/a', read_only=True)
+        with ui.CollapsableFrame("Status", collapsed=False):
+            with ui.VStack(spacing=5, height=0):
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("Status")
+                    self._status_field = ui.StringField(ui.SimpleStringModel("n/a"), read_only=True)
 
-        monitor_frame = CollapsableFrame("Monitor", collapsed=False)
-
-        with monitor_frame:
-            with ui.VStack(style=get_style(), spacing=5, height=0):
-                self._monitor_field = TextBlock(label='Variables', num_lines=10)
+        with ui.CollapsableFrame("Monitor", collapsed=False):
+            with ui.VStack(spacing=5, height=0):
+                with ui.HStack(spacing=5, height=100):
+                    ui.Label("Variables")
+                    self._monitor_field = ui.StringField(ui.SimpleStringModel("{}"), multiline=True, read_only=True)
 
         self._ui_initialized = True
 
@@ -187,19 +191,24 @@ class UIBuilder:
             # Check if the communication is enabled
             if not self._enable_communication:
                 if self._ui_initialized:
-                    self._status_field.set_value("Disabled")
+                    self._status_field.model.set_value("Disabled")
+                    self._monitor_field.model.set_value("{}")
                 continue
 
             # Catch exceptions and log them to the status field
             try:
-
-                if status_update_time < time.time():
-                    self._status_field.set_value("Data Exchange Active")
-
                 # Start the communication if it is not initialized
-                if(not self._communication_initialized):
+                if (not self._communication_initialized) and (self._enable_communication):
                     self._ads_connector.connect()
                     self._communication_initialized = True
+                elif (self._communication_initialized) and (not self._ads_connector.is_connected()):
+                    self._ads_connector.disconnect()
+
+                if status_update_time < time.time():
+                    if self._ads_connector.is_connected():
+                        self._status_field.model.set_value("Connected")
+                    else:
+                        self._status_field.model.set_value("Attempting to connect...")
 
                 # Write data to the PLC if there is data to write
                 # If there is an exception, log it to the status field but continue reading data
@@ -211,7 +220,7 @@ class UIBuilder:
                         self._ads_connector.write_data(values)
                 except Exception as e:
                     if self._ui_initialized:
-                        self._status_field.set_value(f"Error writing data to PLC: {e}")
+                        self._status_field.model.set_value(f"Error writing data to PLC: {e}")
                         status_update_time = time.time() + 1
 
                 # Read data from the PLC
@@ -223,11 +232,11 @@ class UIBuilder:
                 # Update the monitor field
                 if self._ui_initialized:
                     json_formatted_str = json.dumps(self._data, indent=4)
-                    self._monitor_field.set_text(json_formatted_str)
+                    self._monitor_field.model.set_value(json_formatted_str)
 
             except Exception as e:
                 if self._ui_initialized:
-                    self._status_field.set_value(f"Error reading data from PLC: {e}")
+                    self._status_field.model.set_value(f"Error reading data from PLC: {e}")
                     status_update_time = time.time() + 1
                 time.sleep(1)
 
@@ -238,24 +247,24 @@ class UIBuilder:
     ####################################
 
     def get_setting(self, name, default_value=None ):
-        setting =  carb_utils.get_carb_setting(self.settings_interface, "/persistent/" + EXTENSION_NAME + "/" + name )
+        setting = self.settings_interface.get("/persistent/" + EXTENSION_NAME + "/" + name)
         if setting is None:
             setting = default_value
-            self.set_setting(name, setting)
+            self.settings_interface.set("/persistent/" + EXTENSION_NAME + "/" + name, setting)
         return setting
 
     def set_setting(self, name, value ):
-        carb_utils.set_carb_setting(self.settings_interface, "/persistent/" + EXTENSION_NAME + "/" + name, value )
+        self.settings_interface.set("/persistent/" + EXTENSION_NAME + "/" + name, value)
 
     def _on_plc_ams_net_id_changed(self, value):
-        self._ads_connector.ams_net_id = value
+        self._ads_connector.ams_net_id = value.get_value_as_string()
         self._communication_initialized = False
 
     def _on_refresh_rate_changed(self, value):
-        self._refresh_rate = value
+        self._refresh_rate = value.get_value_as_int()
 
     def _toggle_communication_enable(self, state):
-        self._enable_communication = state
+        self._enable_communication = state.get_value_as_bool()
         if not self._enable_communication:
             self._communication_initialized = False
 
@@ -269,8 +278,8 @@ class UIBuilder:
         self._ads_connector.ams_net_id = self.get_setting('PLC_AMS_NET_ID')
         self._enable_communication = self.get_setting('ENABLE_COMMUNICATION')
 
-        self._refresh_rate_field.set_value(self._refresh_rate)
-        self._plc_ams_net_id_field.set_value(self._ads_connector.ams_net_id)
-        self._enable_communication_checkbox.set_value(self._enable_communication)
+        self._refresh_rate_field.model.set_value(self._refresh_rate)
+        self._plc_ams_net_id_field.model.set_value(self._ads_connector.ams_net_id)
+        self._enable_communication_checkbox.model.set_value(self._enable_communication)
         self._communication_initialized = False
 

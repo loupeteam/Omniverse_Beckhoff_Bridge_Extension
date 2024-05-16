@@ -8,8 +8,4 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 #
 
-
-EXTENSION_TITLE = "beckhoff_bridge"
-EXTENSION_NAME = "loupe.beckhoff_bridge"
-EXTENSION_DESCRIPTION = "Connector for Beckhoff PLCs"
-
+from .extension import *

@@ -16,8 +16,7 @@ import omni.ui as ui
 import omni.usd
 import omni.timeline
 import omni.kit.commands
-from omni.kit.menu.utils import add_menu_items, remove_menu_items
-from omni.isaac.ui.menu import make_menu_item_description
+from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescription
 from omni.usd import StageEventType
 import omni.physx as _physx
 
@@ -59,9 +58,8 @@ class TestExtension(omni.ext.IExt):
         self._models = {}
         self._ext_id = ext_id
         self._menu_items = [
-            make_menu_item_description(ext_id, EXTENSION_TITLE, lambda a=weakref.proxy(self): a._menu_callback())
+            MenuItemDescription(name="Open Bridge Settings", onclick_fn=lambda a=weakref.proxy(self): a._menu_callback())
         ]
-
         add_menu_items(self._menu_items, EXTENSION_TITLE)
 
         # Filled in with User Functions
