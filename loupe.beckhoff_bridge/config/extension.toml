@@ -4,12 +4,12 @@ order = 0
 
 [package]
 version = "0.1.0"
-category = "Connector"
+category = "simulation"
 title = "Beckhoff Bridge"
 description = "A bridge for connecting Omniverse to Beckhoff PLCs over ADS"
 authors = ["Loupe"]
 repository = "https://github.com/loupeteam/Omniverse_Beckhoff_Bridge_Extension"
-keywords = []
+keywords = ["Beckhoff", "Digital Twin", "ADS"]
 changelog = "docs/CHANGELOG.md"
 readme = "docs/README.md"
 preview_image = "data/preview.png"
@@ -25,3 +25,4 @@ use_online_index = true
 
 [[python.module]]
 name = "loupe.beckhoff_bridge"
+public = true
