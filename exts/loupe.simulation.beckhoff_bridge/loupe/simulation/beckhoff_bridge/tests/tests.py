@@ -24,7 +24,7 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
         input_name = "gVar"
         correct_output = {input_name: value}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -40,7 +40,7 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
         for value in self.test_different_data_types:
             correct_output = {"gInt" : 7, input_name: value}
 
-            actual_output = self.driver._parse_name(starting_dict, input_name, value)
+            actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
             
             self.assertEqual(actual_output, 
                             correct_output, 
@@ -54,7 +54,7 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
 
         for value in self.test_different_data_types:
             correct_output = {"gVar": value}
-            actual_output = self.driver._parse_name(starting_dict, input_name, value)
+            actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
             self.assertEqual(actual_output, 
                             correct_output, 
@@ -68,7 +68,7 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
         input_name = "gArray"
         correct_output = {"gArray": value}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -81,7 +81,7 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
         input_name = "gStruct"
         correct_output = {"gStruct": value}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -104,7 +104,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gBool": [None, None, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -117,7 +117,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gInt" : 7, "gBool": [None, None, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -131,7 +131,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gBool": [None, None, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -144,7 +144,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gBool": [False, None, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -157,7 +157,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gInt[2]"
         correct_output = {"gInt": [1, 2, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -169,7 +169,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gBool": [1, 2, value, 4, 5]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -181,7 +181,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gBool": [None, None, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -193,7 +193,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
         input_name = "gBool[2]"
         correct_output = {"gBool": [None, None, value]}
 
-        actual_output = self.driver._parse_name(starting_dict, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -222,7 +222,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
                 }
             }
         
-        actual_output = self.driver._parse_name({}, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, input_name, value)
 
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -238,7 +238,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
                     "var": value}
                 }
             }
-        actual_output = self.driver._parse_name({}, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, input_name, value)
         
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -252,7 +252,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
         correct_output = {"Program": {"array" : [None] * array_size}}
         correct_output["Program"]["array"][array_size - 1] = value
         
-        actual_output = self.driver._parse_name({}, input_name, value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, input_name, value)
         
         self.assertEqual(actual_output, 
                          correct_output, 
@@ -262,7 +262,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
     def test_array_index_member_first(self):
         """Test writing to first member of an array"""
         value = 30
-        actual_output = self.driver._parse_name({}, "myArray[0].myVar", value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, "myArray[0].myVar", value)
         correct_output =  {
                         "myArray": 
                         [
@@ -280,7 +280,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
     def test_array_index_member_nth(self):
         """Test writing to last member of an array."""
         value = 30
-        actual_output = self.driver._parse_name({}, "myArray[2].myVar", value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, "myArray[2].myVar", value)
         correct_output =  {
                         "myArray": 
                         [   None,
@@ -299,7 +299,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
         """Test replacing second to last of an array."""
         starting_dict = {'myVar' : 1, "myArray": [1, 2, 3, 4]}
         value = 30
-        actual_output = self.driver._parse_name(starting_dict, "myArray[2].myVar", value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict(starting_dict, "myArray[2].myVar", value)
         correct_output =  {
                             "myVar" : 1,
                                 "myArray": 
@@ -319,7 +319,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
     def test_structure_array_index_member(self):
         """Writing to a struct inside of an array, inside of a struct."""
         value = 30
-        actual_output = self.driver._parse_name({}, "myStruct.myArray[0].myVar", value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, "myStruct.myArray[0].myVar", value)
         correct_output =  {
                         "myStruct": 
                         {
@@ -355,7 +355,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
                         }
         # Global
         for value in self.test_different_data_types:
-            actual_output = self.driver._parse_name({}, "myStruct.myStruct.myStruct.myArray[0]", value)
+            actual_output = self.driver._parse_flat_plc_var_to_dict({}, "myStruct.myStruct.myStruct.myArray[0]", value)
             correct_output["myStruct"]["myStruct"]["myStruct"]["myArray"][0] = value
             self.assertEqual(actual_output, 
                             correct_output, 
@@ -379,7 +379,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
         
         
         for value in self.test_different_data_types:
-            actual_output = self.driver._parse_name({}, "Program.myStruct.myStruct.myArray[0]", value)
+            actual_output = self.driver._parse_flat_plc_var_to_dict({}, "Program.myStruct.myStruct.myArray[0]", value)
             correct_output["Program"]["myStruct"]["myStruct"]["myArray"][0] = value
             self.assertEqual(actual_output, 
                             correct_output, 
@@ -400,7 +400,7 @@ class TestParseNameComplex(omni.kit.test.AsyncTestCase):
 
     def test_deep_mix_of_nesting(self):
         value = 30
-        actual_output = self.driver._parse_name({}, "Program.myStruct.myArray[1].myStruct.arr[3].myVar", value)
+        actual_output = self.driver._parse_flat_plc_var_to_dict({}, "Program.myStruct.myArray[1].myStruct.arr[3].myVar", value)
         correct_output =  {   "Program": {
                             "myStruct": 
                             {
