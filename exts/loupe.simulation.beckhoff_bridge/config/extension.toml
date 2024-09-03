@@ -15,7 +15,6 @@ readme = "docs/README.md"
 preview_image = "data/preview.png"
 icon = "data/icon.png"
 
-
 [dependencies]
 "omni.kit.uiapp" = {}
 
@@ -26,3 +25,13 @@ use_online_index = true
 [[python.module]]
 name = "loupe.simulation.beckhoff_bridge"
 public = true
+
+[[test]]
+# Extra dependencies only to be used during test run
+dependencies = [
+    "omni.kit.ui_test", # UI testing extension
+    "omni.usd",
+    "omni.kit.menu.utils",
+    "omni.physx"
+]
+timeout = 60
