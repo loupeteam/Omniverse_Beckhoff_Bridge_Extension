@@ -1,0 +1,37 @@
+[core]
+reloadable = true
+order = 0
+
+[package]
+version = "0.1.0"
+category = "simulation"
+title = "Beckhoff Bridge"
+description = "A bridge for connecting Omniverse to Beckhoff PLCs over ADS"
+authors = ["Loupe"]
+repository = "https://github.com/loupeteam/Omniverse_Beckhoff_Bridge_Extension"
+keywords = ["Beckhoff", "Digital Twin", "ADS", "PLC"]
+changelog = "docs/CHANGELOG.md"
+readme = "docs/README.md"
+preview_image = "data/preview.png"
+icon = "data/icon.png"
+
+[dependencies]
+"omni.kit.uiapp" = {}
+
+[python.pipapi]
+requirements = ['pyads']
+use_online_index = true
+
+[[python.module]]
+name = "loupe.simulation.beckhoff_bridge"
+public = true
+
+[[test]]
+# Extra dependencies only to be used during test run
+dependencies = [
+    "omni.kit.ui_test", # UI testing extension
+    "omni.usd",
+    "omni.kit.menu.utils",
+    "omni.physx"
+]
+timeout = 60
