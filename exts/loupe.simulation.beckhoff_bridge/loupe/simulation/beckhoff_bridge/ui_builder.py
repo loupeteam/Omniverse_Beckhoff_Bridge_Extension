@@ -24,6 +24,9 @@ from threading import RLock
 import json
 
 import time
+
+LABEL_WIDTH = 100
+BUTTON_WIDTH = 100
  
 class UIBuilder:
     def __init__(self):
@@ -60,6 +63,8 @@ class UIBuilder:
 
         self._thread = threading.Thread(target=self._update_plc_data)
         self._thread.start()
+
+        self._log_jitter = False
 
     ###################################################################################
     #           The Functions Below Are Called Automatically By extension.py
@@ -116,37 +121,37 @@ class UIBuilder:
             with ui.VStack(spacing=5, height=0):
 
                 with ui.HStack(spacing=5, height=0):
-                    ui.Label("Enable ADS Client")
+                    ui.Label("Enable ADS Client", width=LABEL_WIDTH)
                     self._enable_communication_checkbox = ui.CheckBox(ui.SimpleBoolModel(self._enable_communication))
                     self._enable_communication_checkbox.model.add_value_changed_fn(self._toggle_communication_enable)
                 
                 with ui.HStack(spacing=5, height=0):
-                    ui.Label("Refresh Rate (ms)")
+                    ui.Label("Refresh Rate (ms)", width=LABEL_WIDTH)
                     self._refresh_rate_field = ui.IntField(ui.SimpleIntModel(self._refresh_rate))
                     self._refresh_rate_field.model.set_min(10)
                     self._refresh_rate_field.model.set_max(10000)
                     self._refresh_rate_field.model.add_value_changed_fn(self._on_refresh_rate_changed)
                                    
                 with ui.HStack(spacing=5, height=0):
-                    ui.Label("PLC AMS Net Id")
+                    ui.Label("PLC AMS Net Id", width=LABEL_WIDTH)
                     self._plc_ams_net_id_field = ui.StringField(ui.SimpleStringModel(self._ads_connector.ams_net_id))
                     self._plc_ams_net_id_field.model.add_value_changed_fn(self._on_plc_ams_net_id_changed)
 
                 with ui.HStack(spacing=5, height=0):
-                    ui.Label("Settings")
-                    ui.Button("Load", clicked_fn=self.load_settings)
-                    ui.Button("Save", clicked_fn=self.save_settings)
+                    ui.Label("Settings", width=LABEL_WIDTH)
+                    ui.Button("Load", clicked_fn=self.load_settings, width=BUTTON_WIDTH)
+                    ui.Button("Save", clicked_fn=self.save_settings, width=BUTTON_WIDTH)
 
         with ui.CollapsableFrame("Status", collapsed=False):
             with ui.VStack(spacing=5, height=0):
                 with ui.HStack(spacing=5, height=0):
-                    ui.Label("Status")
+                    ui.Label("Status", width=LABEL_WIDTH)
                     self._status_field = ui.StringField(ui.SimpleStringModel("n/a"), read_only=True)
 
         with ui.CollapsableFrame("Monitor", collapsed=False):
             with ui.VStack(spacing=5, height=0):
                 with ui.HStack(spacing=5, height=100):
-                    ui.Label("Variables")
+                    ui.Label("Variables",width=LABEL_WIDTH)
                     self._monitor_field = ui.StringField(ui.SimpleStringModel("{}"), multiline=True, read_only=True)
 
         self._ui_initialized = True
@@ -176,20 +181,35 @@ class UIBuilder:
 
         thread_start_time = time.time()
         status_update_time = time.time()
+        measure = time.time()
 
         while self._thread_is_alive:
 
             # Sleep for the refresh rate
-            sleepy_time = self._refresh_rate/1000 - (time.time() - thread_start_time)
+            now = time.time()
+
+            sleepy_time = self._refresh_rate / 1000 - (now - thread_start_time)
+
+            if self._log_jitter:
+                delta_measure = now - measure
+                measure = now
+                jitter = (delta_measure - self._refresh_rate / 1000) * 1000
+
+                if abs(jitter) > 1:
+                    logger.info(f"Jitter: {int(jitter)} ms")
+
             if sleepy_time > 0:
+                thread_start_time = now + sleepy_time
                 time.sleep(sleepy_time)
             else:
-                time.sleep(0.1)
-
-            thread_start_time = time.time()
+                # If the refresh rate is too fast,Yield to other threads,
+                # but come back to this thread immediately
+                thread_start_time = now
+                time.sleep(0)
 
             # Check if the communication is enabled
             if not self._enable_communication:
+                time.sleep(1)
                 if self._ui_initialized:
                     self._status_field.model.set_value("Disabled")
                     self._monitor_field.model.set_value("{}")
