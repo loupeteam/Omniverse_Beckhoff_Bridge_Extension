@@ -12,5 +12,11 @@
             "host": "127.0.0.1",
             "justMyCode": false
         },
+        {
+            "name": "Python: Remote Attach",
+            "type": "python",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+        }
     ]
 }

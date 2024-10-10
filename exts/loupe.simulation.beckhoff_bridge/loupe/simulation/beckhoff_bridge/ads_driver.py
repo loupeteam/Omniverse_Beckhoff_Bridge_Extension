@@ -35,7 +35,8 @@ class AdsDriver():
         self.ams_net_id = ams_net_id
         self._read_names = list()
         self._read_struct_def = dict()
-
+        self._connection = None
+        
     def add_read(self, name : str, structure_def = None):
         """
         Adds a variable to the list of data to read.
@@ -189,7 +190,7 @@ class AdsDriver():
         Disconnects from the target device.
 
         """
-        self._connection.close()
+        self._connection = None
 
     def is_connected(self):
         """
@@ -200,8 +201,9 @@ class AdsDriver():
 
         """
         try:
-            adsState, deviceState = self._connection.read_state()
-            return True
+            if self._connection is None:
+                return False
+            return self._connection.is_open
         except Exception as e:
             return False
 

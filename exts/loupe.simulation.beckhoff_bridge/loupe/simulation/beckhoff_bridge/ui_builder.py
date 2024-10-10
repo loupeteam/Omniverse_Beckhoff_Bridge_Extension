@@ -10,33 +10,24 @@
 
 import omni.ui as ui
 import omni.timeline
-
+import logging
 from carb.settings import get_settings
-
-from .ads_driver import AdsDriver
-
 from .global_variables import EXTENSION_NAME
 from .BeckhoffBridge import (
     EVENT_TYPE_DATA_READ,
-    EVENT_TYPE_DATA_READ_REQ,
-    EVENT_TYPE_DATA_WRITE_REQ,
-    EVENT_TYPE_DATA_INIT,
+    EVENT_TYPE_CONNECTION,
+    EVENT_TYPE_STATUS,
+    get_stream_name,
 )
-
-import threading
-from threading import RLock
-
-import json
-
 import time
-
-import logging
+from .BeckhoffBridge import get_system
 
 logger = logging.getLogger(__name__)
 
 
 LABEL_WIDTH = 100
 BUTTON_WIDTH = 100
+
 
 class UIBuilder:
     def __init__(self):
@@ -45,7 +36,7 @@ class UIBuilder:
 
         # Get access to the timeline to control stop/pause/play programmatically
         self._timeline = omni.timeline.get_timeline_interface()
-        
+
         # Get the settings interface
         self.settings_interface = get_settings()
 
@@ -59,81 +50,103 @@ class UIBuilder:
         self._enable_communication = self.get_setting("ENABLE_COMMUNICATION", False)
         self._refresh_rate = self.get_setting("REFRESH_RATE", 20)
 
+        self._plc_manager = get_system()
+
         # Data stream where the extension will dump the data that it reads from the PLC.
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
+        self._active_plc = None
+        self._plc_subscriptions = []
 
-        self._ads_connector = AdsDriver(
-            self.get_setting("PLC_AMS_NET_ID", "127.0.0.1.1.1")
-        )
+        self._status_stack = dict()
 
-        self.write_queue = dict()
-        self.write_lock = RLock()
+    beckhoff_bridge_runtime = property(
+        lambda self: self._plc_manager.get_plc(self._active_plc)
+    )
 
-        self.read_req = self._event_stream.create_subscription_to_push_by_type(
-            EVENT_TYPE_DATA_READ_REQ, self.on_read_req_event
-        )
-        self.write_req = self._event_stream.create_subscription_to_push_by_type(
-            EVENT_TYPE_DATA_WRITE_REQ, self.on_write_req_event
-        )
-        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, payload={"data": {}})
+    def select_plc(self, index):
+        self.unsubscribe_plc()
+        self._active_plc = index
+        name = self._plc_manager.get_plc(index).name
 
-        self._thread = threading.Thread(target=self._update_plc_data)
-        self._thread.start()
+        self._plc_subscriptions = [
+            self._event_stream.create_subscription_to_push_by_type(
+                get_stream_name(EVENT_TYPE_DATA_READ, name), self.on_data_read
+            ),
+            self._event_stream.create_subscription_to_push_by_type(
+                get_stream_name(EVENT_TYPE_CONNECTION, name), self.on_connection
+            ),
+            self._event_stream.create_subscription_to_push_by_type(
+                get_stream_name(EVENT_TYPE_STATUS, name), self.on_status
+            ),
+        ]
 
-        self._log_jitter = False
-
-
-    ###################################################################################
-    #           The Functions Below Are Called Automatically By extension.py
-    ###################################################################################
-
-    def on_menu_callback(self):
-        """Callback for when the UI is opened from the toolbar.
-        This is called directly after build_ui().
-        """
-        self._event_stream.push(event_type=EVENT_TYPE_DATA_INIT, payload={"data": {}})
-
-        if not self._thread_is_alive:
-            self._thread_is_alive = True
-            self._thread = threading.Thread(target=self._update_plc_data)
-            self._thread.start()
-
-    def on_timeline_event(self, event):
-        """Callback for Timeline events (Play, Pause, Stop)
-
-        Args:
-            event (omni.timeline.TimelineEventType): Event Type
-        """
-        if event.type == int(omni.timeline.TimelineEventType.STOP):
-            pass
-        elif event.type == int(omni.timeline.TimelineEventType.PLAY):
-            pass
-        elif event.type == int(omni.timeline.TimelineEventType.PAUSE):
-            pass
-
-    def on_stage_event(self, event):
-        """Callback for Stage Events
-
-        Args:
-            event (omni.usd.StageEventType): Event Type
-        """
-        pass
+    def unsubscribe_plc(self):
+        for subscription in self._plc_subscriptions:
+            subscription.unsubscribe()
 
     def cleanup(self):
         """
         Called when the stage is closed or the extension is hot reloaded.
         Perform any necessary cleanup such as removing active callback functions
         """
-        self.read_req.unsubscribe()
-        self.write_req.unsubscribe()
-        self._thread_is_alive = False
-        self._thread.join()
+        self.unsubscribe_plc()
+
+    def on_status(self, event):
+        data = event.payload["status"]
+
+        self.add_status(data)
+        self.clean_status()
+        self._status_field.model.set_value(str(self.get_status()))
+
+    def get_status(self):
+        status_list = []
+        for status in self._status_stack:
+            data = self._status_stack[status]
+            status_list.append(data["data"])
+        return status_list
+
+    def clean_status(self):
+        for status in list(self._status_stack.keys()):
+            data = self._status_stack[status]
+            if time.time() - data["time"] > 10:
+                del self._status_stack[status]
+
+    def add_status(self, data):
+        self._status_stack[hash(str(data))] = {"time": time.time(), "data": str(data)}
+
+    def on_connection(self, event):
+        data = event.payload["status"]
+        self.add_status(data)
+        self.clean_status()
+        self._status_field.model.set_value(str(self.get_status()))
+
+    def on_data_read(self, event):
+        data = event.payload["data"]
+        self._monitor_field.model.set_value(str(data))
+
+    def on_menu_callback(self):
+        """Callback for when the UI is opened from the toolbar.
+        This is called directly after build_ui().
+        """
+        pass
 
     def build_ui(self):
         """
         Build a custom UI tool to run your extension.
         This function will be called any time the UI window is closed and reopened.
         """
+
+        plcs = self._plc_manager.get_plc_names()
+        if len(plcs) > 0:
+            self.select_plc(plcs[0])
+
+        with ui.CollapsableFrame("Selection", collapsed=False):
+            with ui.VStack(spacing=5, height=0):
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("Select PLC", width=LABEL_WIDTH)
+                    self._plc_dropdown = ui.ComboBox(0, *plcs, selected_index=0)
+                    self._plc_dropdown.model.add_item_changed_fn(self.select_plc)
+
         with ui.CollapsableFrame("Configuration", collapsed=False):
             with ui.VStack(spacing=5, height=0):
 
@@ -160,7 +173,7 @@ class UIBuilder:
                 with ui.HStack(spacing=5, height=0):
                     ui.Label("PLC AMS Net Id", width=LABEL_WIDTH)
                     self._plc_ams_net_id_field = ui.StringField(
-                        ui.SimpleStringModel(self._ads_connector.ams_net_id)
+                        ui.SimpleStringModel(self.beckhoff_bridge_runtime.ams_net_id)
                     )
                     self._plc_ams_net_id_field.model.add_value_changed_fn(
                         self._on_plc_ams_net_id_changed
@@ -191,120 +204,6 @@ class UIBuilder:
 
     ####################################
     ####################################
-    # UTILITY FUNCTIONS
-    ####################################
-    ####################################
-
-    def on_read_req_event(self, event):
-        event_data = event.payload
-        variables: list = event_data["variables"]
-        for name in variables:
-            self._ads_connector.add_read(name)
-
-    def on_write_req_event(self, event):
-        variables = event.payload["variables"]
-        for variable in variables:
-            self.queue_write(variable["name"], variable["value"])
-
-    def queue_write(self, name, value):
-        with self.write_lock:
-            self.write_queue[name] = value
-
-    def _update_plc_data(self):
-
-        thread_start_time = time.time()
-        status_update_time = time.time()
-        measure = time.time()
-
-        while self._thread_is_alive:
-
-            # Sleep for the refresh rate
-            now = time.time()
-
-            sleepy_time = self._refresh_rate / 1000 - (now - thread_start_time)
-
-            if self._log_jitter:
-                delta_measure = now - measure
-                measure = now
-                jitter = (delta_measure - self._refresh_rate / 1000) * 1000
-
-                if abs(jitter) > 1:
-                    logger.info(f"Jitter: {int(jitter)} ms")
-
-            if sleepy_time > 0:
-                thread_start_time = now + sleepy_time
-                time.sleep(sleepy_time)
-            else:
-                # If the refresh rate is too fast,Yield to other threads,
-                # but come back to this thread immediately
-                thread_start_time = now
-                time.sleep(0)
-
-            # Check if the communication is enabled
-            if not self._enable_communication:
-                time.sleep(1)
-                if self._ui_initialized:
-                    self._status_field.model.set_value("Disabled")
-                    self._monitor_field.model.set_value("{}")
-                continue
-
-            # Catch exceptions and log them to the status field
-            try:
-                # Start the communication if it is not initialized
-                if (not self._communication_initialized) and (
-                    self._enable_communication
-                ):
-                    self._ads_connector.connect()
-                    self._communication_initialized = True
-                elif (self._communication_initialized) and (
-                    not self._ads_connector.is_connected()
-                ):
-                    self._ads_connector.disconnect()
-
-                if status_update_time < time.time():
-                    if self._ads_connector.is_connected():
-                        self._status_field.model.set_value("Connected")
-                    else:
-                        self._status_field.model.set_value("Attempting to connect...")
-
-                # Write data to the PLC if there is data to write
-                # If there is an exception, log it to the status field but continue reading data
-                try:
-                    if self.write_queue:
-                        with self.write_lock:
-                            values = self.write_queue
-                            self.write_queue = dict()
-                        self._ads_connector.write_data(values)
-                except Exception as e:
-                    if self._ui_initialized:
-                        self._status_field.model.set_value(
-                            f"Error writing data to PLC: {e}"
-                        )
-                        status_update_time = time.time() + 1
-
-                # Read data from the PLC
-                self._data = self._ads_connector.read_data()
-
-                # Push the data to the event stream
-                self._event_stream.push(
-                    event_type=EVENT_TYPE_DATA_READ, payload={"data": self._data}
-                )
-
-                # Update the monitor field
-                if self._ui_initialized:
-                    json_formatted_str = json.dumps(self._data, indent=4)
-                    self._monitor_field.model.set_value(json_formatted_str)
-
-            except Exception as e:
-                if self._ui_initialized:
-                    self._status_field.model.set_value(
-                        f"Error reading data from PLC: {e}"
-                    )
-                    status_update_time = time.time() + 1
-                time.sleep(1)
-
-    ####################################
-    ####################################
     # Manage Settings
     ####################################
     ####################################
@@ -324,28 +223,34 @@ class UIBuilder:
         self.settings_interface.set("/persistent/" + EXTENSION_NAME + "/" + name, value)
 
     def _on_plc_ams_net_id_changed(self, value):
-        self._ads_connector.ams_net_id = value.get_value_as_string()
-        self._communication_initialized = False
+        self.beckhoff_bridge_runtime.ams_net_id = value.get_value_as_string()
 
     def _on_refresh_rate_changed(self, value):
-        self._refresh_rate = value.get_value_as_int()
+        self.beckhoff_bridge_runtime.refresh_rate = value.get_value_as_int()
 
     def _toggle_communication_enable(self, state):
-        self._enable_communication = state.get_value_as_bool()
-        if not self._enable_communication:
-            self._communication_initialized = False
+        self.beckhoff_bridge_runtime.enable_communication = state.get_value_as_bool()
 
     def save_settings(self):
-        self.set_setting("REFRESH_RATE", self._refresh_rate)
-        self.set_setting("PLC_AMS_NET_ID", self._ads_connector.ams_net_id)
-        self.set_setting("ENABLE_COMMUNICATION", self._enable_communication)
+        self.set_setting("REFRESH_RATE", self.beckhoff_bridge_runtime.refresh_rate)
+        self.set_setting("PLC_AMS_NET_ID", self.beckhoff_bridge_runtime.ams_net_id)
+        self.set_setting(
+            "ENABLE_COMMUNICATION", self.beckhoff_bridge_runtime.enable_communication
+        )
 
     def load_settings(self):
-        self._refresh_rate = self.get_setting("REFRESH_RATE")
-        self._ads_connector.ams_net_id = self.get_setting("PLC_AMS_NET_ID")
-        self._enable_communication = self.get_setting("ENABLE_COMMUNICATION")
+        self.beckhoff_bridge_runtime.refresh_rate = self.get_setting("REFRESH_RATE")
+        self.beckhoff_bridge_runtime.ams_net_id = self.get_setting("PLC_AMS_NET_ID")
+        self.beckhoff_bridge_runtime.enable_communication = self.get_setting(
+            "ENABLE_COMMUNICATION"
+        )
 
-        self._refresh_rate_field.model.set_value(self._refresh_rate)
-        self._plc_ams_net_id_field.model.set_value(self._ads_connector.ams_net_id)
-        self._enable_communication_checkbox.model.set_value(self._enable_communication)
-        self._communication_initialized = False
+        self._refresh_rate_field.model.set_value(
+            self.beckhoff_bridge_runtime.refresh_rate
+        )
+        self._plc_ams_net_id_field.model.set_value(
+            self.beckhoff_bridge_runtime.ams_net_id
+        )
+        self._enable_communication_checkbox.model.set_value(
+            self.beckhoff_bridge_runtime.enable_communication
+        )

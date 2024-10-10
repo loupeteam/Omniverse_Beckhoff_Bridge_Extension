@@ -16,12 +16,16 @@ import omni.ui as ui
 import omni.usd
 import omni.timeline
 import omni.kit.commands
+from carb.settings import get_settings
+
 from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescription
 from omni.usd import StageEventType
 import omni.physx as _physx
 
-from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION
+from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME
 from .ui_builder import UIBuilder
+from .runtime import System
+from .BeckhoffBridge import _set_system
 
 """
 This file serves as a basic template for the standard boilerplate operations
@@ -43,16 +47,26 @@ This class sets up standard useful callback functions in UIBuilder:
 MENU_HEADER = "Loupe"
 MENU_ITEM_NAME = "Beckhoff Bridge"
 
-class TestExtension(omni.ext.IExt):
+
+class Extension(omni.ext.IExt):
     def on_startup(self, ext_id: str):
         """Initialize extension and UI elements"""
+
+        self._plc_manager = System()
+        self._plc_manager.set_default_options(options)
+        _set_system(self._plc_manager)
+        self.find_plcs()
 
         # Events
         self._usd_context = omni.usd.get_context()
 
         # Build Window
         self._window = ui.Window(
-            title=EXTENSION_TITLE, width=600, height=500, visible=False, dockPreference=ui.DockPreference.LEFT_BOTTOM
+            title=EXTENSION_TITLE,
+            width=600,
+            height=500,
+            visible=False,
+            dockPreference=ui.DockPreference.LEFT_BOTTOM,
         )
         self._window.set_visibility_changed_fn(self._on_window)
 
@@ -60,7 +74,10 @@ class TestExtension(omni.ext.IExt):
         self._models = {}
         self._ext_id = ext_id
         self._menu_items = [
-            MenuItemDescription(name=MENU_ITEM_NAME, onclick_fn=lambda a=weakref.proxy(self): a._menu_callback())
+            MenuItemDescription(
+                name=MENU_ITEM_NAME,
+                onclick_fn=lambda a=weakref.proxy(self): a._menu_callback(),
+            )
         ]
         add_menu_items(self._menu_items, MENU_HEADER)
 
@@ -74,12 +91,18 @@ class TestExtension(omni.ext.IExt):
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
+    def find_plcs(self):
+        self._plc_manager.add_plc("PLC1", {})
+
     def on_shutdown(self):
         self._models = {}
         remove_menu_items(self._menu_items, MENU_HEADER, True)
         if self._window:
             self._window = None
         self.ui_builder.cleanup()
+        self._plc_manager.cleanup()
+        _set_manager(None)
+
         gc.collect()
 
     def _on_window(self, visible):
@@ -87,9 +110,13 @@ class TestExtension(omni.ext.IExt):
             # Subscribe to Stage and Timeline Events
             self._usd_context = omni.usd.get_context()
             events = self._usd_context.get_stage_event_stream()
-            self._stage_event_sub = events.create_subscription_to_pop(self._on_stage_event)
+            self._stage_event_sub = events.create_subscription_to_pop(
+                self._on_stage_event
+            )
             stream = self._timeline.get_timeline_event_stream()
-            self._timeline_event_sub = stream.create_subscription_to_pop(self._on_timeline_event)
+            self._timeline_event_sub = stream.create_subscription_to_pop(
+                self._on_timeline_event
+            )
 
             self._build_ui()
         else:
@@ -117,24 +144,54 @@ class TestExtension(omni.ext.IExt):
 
         self._task = asyncio.ensure_future(dock_window())
 
-    #################################################################
-    # Functions below this point call user functions
-    #################################################################
-
     def _menu_callback(self):
         self._window.visible = not self._window.visible
         self.ui_builder.on_menu_callback()
 
     def _on_timeline_event(self, event):
-        self.ui_builder.on_timeline_event(event)
+        pass
 
     def _on_stage_event(self, event):
-        if event.type == int(StageEventType.OPENED) or event.type == int(StageEventType.CLOSED):
+        if event.type == int(StageEventType.OPENED) or event.type == int(
+            StageEventType.CLOSED
+        ):
             # stage was opened or closed, cleanup
             self._physx_subscription = None
-
-        self.ui_builder.on_stage_event(event)
 
     def _build_extension_ui(self):
         # Call user function for building UI
         self.ui_builder.build_ui()
+
+
+class LocalSettings:
+    def __init__(self):
+        self.settings_interface = get_settings()
+
+    def get_setting(self, name, default_value=None):
+        setting = self.settings_interface.get(
+            "/persistent/" + EXTENSION_NAME + "/" + name
+        )
+        if setting is None:
+            setting = default_value
+            self.settings_interface.set(
+                "/persistent/" + EXTENSION_NAME + "/" + name, setting
+            )
+        return setting
+
+    def set_setting(self, name, value):
+        self.settings_interface.set("/persistent/" + EXTENSION_NAME + "/" + name, value)
+
+    def save_settings(self):
+        self.settings_interface.save_settings()
+
+
+# Singleton instance of beckhoff_bridge_runtime
+
+# These are exposed on the UI.
+# Get the settings interface
+settings = LocalSettings()
+options = {
+    "PLC_AMS_NET_ID": settings.get_setting("PLC_AMS_NET_ID", "127.0.0.1.1.1"),
+    "REFRESH_RATE": settings.get_setting("REFRESH_RATE", 20),
+    "ENABLE_COMMUNICATION": settings.get_setting("ENABLE_COMMUNICATION", False),
+}
