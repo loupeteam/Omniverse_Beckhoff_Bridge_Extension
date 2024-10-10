@@ -164,7 +164,7 @@ class Runtime:
                     self._ads_connector.disconnect()
 
                 if connected and not self._was_connected:
-                    self._push_event(EVENT_TYPE_CONNECTION, status="Connected")
+                    self._push_event(EVENT_TYPE_CONNECTION, status="Connecting")
                 elif not connected and self._was_connected:
                     self._push_event(EVENT_TYPE_CONNECTION, status="Disconnected")
 

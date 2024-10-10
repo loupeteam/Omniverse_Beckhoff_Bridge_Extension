@@ -91,12 +91,15 @@ class UIBuilder:
         """
         self.unsubscribe_plc()
 
+    def update_status(self):
+        self.clean_status()
+        self._status_field.model.set_value(str(self.get_status()))
+
     def on_status(self, event):
         data = event.payload["status"]
 
         self.add_status(data)
-        self.clean_status()
-        self._status_field.model.set_value(str(self.get_status()))
+        self.update_status()
 
     def get_status(self):
         status_list = []
@@ -108,7 +111,7 @@ class UIBuilder:
     def clean_status(self):
         for status in list(self._status_stack.keys()):
             data = self._status_stack[status]
-            if time.time() - data["time"] > 10:
+            if time.time() - data["time"] > 3:
                 del self._status_stack[status]
 
     def add_status(self, data):
@@ -117,12 +120,12 @@ class UIBuilder:
     def on_connection(self, event):
         data = event.payload["status"]
         self.add_status(data)
-        self.clean_status()
-        self._status_field.model.set_value(str(self.get_status()))
+        self.update_status()
 
     def on_data_read(self, event):
         data = event.payload["data"]
         self._monitor_field.model.set_value(str(data))
+        self.update_status()
 
     def on_menu_callback(self):
         """Callback for when the UI is opened from the toolbar.

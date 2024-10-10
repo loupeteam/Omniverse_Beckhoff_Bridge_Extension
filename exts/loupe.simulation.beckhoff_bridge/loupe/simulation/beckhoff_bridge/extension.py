@@ -101,7 +101,7 @@ class Extension(omni.ext.IExt):
             self._window = None
         self.ui_builder.cleanup()
         self._plc_manager.cleanup()
-        _set_manager(None)
+        _set_system(None)
 
         gc.collect()
 
