@@ -6,6 +6,7 @@ import omni
 from threading import RLock
 from .ads_driver import AdsDriver
 from .runtime_base import Runtime_Base
+from .UsdManager import RuntimeUsd
 from .BeckhoffBridge import (
     EVENT_TYPE_DATA_READ,
     EVENT_TYPE_DATA_READ_REQ,
@@ -114,6 +115,7 @@ class Runtime(Runtime_Base):
 
         if not self._enable_communication and self._is_connected:
             self._ads_connector.disconnect()
+            self._is_connected = False
 
         if not self._is_connected and self._was_connected:
             self._push_event(EVENT_TYPE_CONNECTION, status="Disconnected")
@@ -157,6 +159,7 @@ class System:
 
     def init(self):
         self._plcs = dict()
+        self._usd_managers = dict()
         self._default_options = {
             "PLC_AMS_NET_ID": "127.0.0.1.1.1",
             "REFRESH_RATE": 20,
@@ -169,6 +172,13 @@ class System:
             plc.cleanup()
             del plc
 
+        for man in self._usd_managers.values():
+            man.cleanup()
+            del man
+
+        self._plcs.clear()
+        self._usd_managers.clear()
+        
     def set_default_options(self, options):
         self._default_options = options
 
@@ -179,8 +189,16 @@ class System:
 
     # Return the names of the PLCs as a list
     def get_plc_names(self):
+        plc = RuntimeUsd.find_plcs()
+        self.cleanup()
+        if plc:
+            for name, options in plc.items():
+                if name not in self._plcs:
+                    self.add_plc(name, options)
+
         return list(self._plcs.keys())
 
     def add_plc(self, name, options):
         if name not in self._plcs:
             self._plcs[name] = Runtime(name, options)
+            self._usd_managers[name] = RuntimeUsd(name)

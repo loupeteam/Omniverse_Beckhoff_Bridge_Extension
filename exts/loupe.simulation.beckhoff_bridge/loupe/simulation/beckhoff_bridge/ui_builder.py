@@ -41,15 +41,6 @@ class UIBuilder:
         # Get the settings interface
         self.settings_interface = get_settings()
 
-        # Internal status flags.
-        self._thread_is_alive = True
-        self._communication_initialized = False
-
-        # Configuration parameters for the extension.
-        # These are exposed on the UI.
-        self._enable_communication = self.get_setting("ENABLE_COMMUNICATION", False)
-        self._refresh_rate = self.get_setting("REFRESH_RATE", 20)
-
         self._plc_manager = get_system()
 
         # Data stream where the extension will dump the data that it reads from the PLC.
@@ -149,8 +140,6 @@ class UIBuilder:
         """
 
         self.plcs = self._plc_manager.get_plc_names()
-        if len(self.plcs) > 0:
-            self.select_plc(self.plcs[0])
 
         with ui.CollapsableFrame("Selection", collapsed=False):
             with ui.VStack(spacing=5, height=0):
@@ -168,10 +157,12 @@ class UIBuilder:
 
         self._plc_ui = ui.VStack(spacing=5, height=0)
 
+        # if len(self.plcs) > 0:
+
         if len(self.plcs) == 0:
             return
-
-        self.build_plc_ui()
+        
+        self.select_plc(self.plcs[0])
 
     def on_plc_selected(self, item_model: ui.AbstractItemModel, item: ui.AbstractItem):
         plcs = self.plcs
@@ -196,7 +187,7 @@ class UIBuilder:
                     with ui.HStack(spacing=5, height=0):
                         ui.Label("Enable ADS Client", width=LABEL_WIDTH)
                         self._enable_communication_checkbox = ui.CheckBox(
-                            ui.SimpleBoolModel(self._enable_communication)
+                            ui.SimpleBoolModel(self.beckhoff_bridge_runtime.enable_communication)
                         )
                         self._enable_communication_checkbox.model.add_value_changed_fn(
                             self._toggle_communication_enable
@@ -205,7 +196,7 @@ class UIBuilder:
                     with ui.HStack(spacing=5, height=0):
                         ui.Label("Refresh Rate (ms)", width=LABEL_WIDTH)
                         self._refresh_rate_field = ui.IntField(
-                            ui.SimpleIntModel(self._refresh_rate)
+                            ui.SimpleIntModel(self.beckhoff_bridge_runtime.refresh_rate)
                         )
                         self._refresh_rate_field.model.set_min(10)
                         self._refresh_rate_field.model.set_max(10000)

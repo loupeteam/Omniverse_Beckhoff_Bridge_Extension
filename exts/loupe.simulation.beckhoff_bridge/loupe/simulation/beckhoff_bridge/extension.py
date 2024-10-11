@@ -26,6 +26,7 @@ from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_
 from .ui_builder import UIBuilder
 from .BeckhoffRuntime import System
 from .BeckhoffBridge import _set_system
+from .UsdManager import RuntimeUsd
 
 """
 This file serves as a basic template for the standard boilerplate operations
@@ -55,7 +56,6 @@ class Extension(omni.ext.IExt):
         self._plc_manager = System()
         self._plc_manager.set_default_options(options)
         _set_system(self._plc_manager)
-        self.find_plcs()
 
         # Events
         self._usd_context = omni.usd.get_context()
@@ -91,9 +91,14 @@ class Extension(omni.ext.IExt):
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
+        self.find_plcs()
+
     def find_plcs(self):
-        pass
-        # self._plc_manager.add_plc("PLC1", {})
+        plcs = RuntimeUsd.find_plcs()
+        if plcs is None:
+            return
+        for plc in plcs:
+            self._plc_manager.add_plc(plc, plcs[plc])
 
     def on_shutdown(self):
         self._models = {}
@@ -153,11 +158,12 @@ class Extension(omni.ext.IExt):
         pass
 
     def _on_stage_event(self, event):
-        if event.type == int(StageEventType.OPENED) or event.type == int(
-            StageEventType.CLOSED
-        ):
+        if event.type == int(StageEventType.OPENED) or event.type == int(StageEventType.CLOSED):
             # stage was opened or closed, cleanup
             self._physx_subscription = None
+            self._plc_manager.cleanup()
+            self.find_plcs()
+            
 
     def _build_extension_ui(self):
         # Call user function for building UI
