@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class Runtime:
+    # region - Class lifecycle
     def __init__(self, name="PLC1", options={}):
 
         self._name = name
@@ -30,8 +31,8 @@ class Runtime:
 
         self._thread_is_alive = False
         self._was_connected = False
-        self._communication_initialized = False
-        self._thread = None
+        self._is_connected = False
+        self._thread = []
 
         self._refresh_rate = options.get("REFRESH_RATE") or 20
         self._log_jitter = options.get("LOG_JITTER") or True
@@ -45,6 +46,8 @@ class Runtime:
     def __del__(self):
         self.cleanup()
 
+    # endregion
+    # region - Properties
     ams_net_id = property(
         lambda self: self._ads_connector.ams_net_id,
         lambda self, value: self._set_ams_net_id(value),
@@ -52,7 +55,7 @@ class Runtime:
 
     def _set_ams_net_id(self, value):
         self._ads_connector.ams_net_id = value
-        self._communication_initialized = False
+        self._is_connected = False
 
     refresh_rate = property(
         lambda self: self._refresh_rate,
@@ -71,26 +74,36 @@ class Runtime:
         self._communication_initialized = False
         self._push_event(EVENT_TYPE_ENABLE, status={"enabled": value})
 
+    # endregion
+    # region - Thread Management
     def _start_update_thread(self):
         if not self._thread_is_alive:
             self._thread_is_alive = True
-            self._thread = threading.Thread(target=self._update_plc_data)
-            self._thread.start()
+            self._threads = [
+                threading.Thread(target=self._read_plc_data),
+                threading.Thread(target=self._write_plc_data),
+            ]
+            for thread in self._threads:
+                thread.start()
 
     def _stop_update_thread(self):
-        if self._thread is not None:
-            self._thread_is_alive = False
-            self._thread.join()
+        self._thread_is_alive = False
+        for thread in self._threads:
+            thread.join()
 
+        self._threads = []
+
+    # endregion
+    # region - Event Stream
     def _subscibe_event_stream(self):
         # Data stream where the extension will dump the data that it reads from the PLC.
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
 
         self.read_req = self._event_stream.create_subscription_to_push_by_type(
-            self.get_stream_name(EVENT_TYPE_DATA_READ_REQ), self.on_read_req_event
+            self.get_stream_name(EVENT_TYPE_DATA_READ_REQ), self._on_read_req_event
         )
         self.write_req = self._event_stream.create_subscription_to_push_by_type(
-            self.get_stream_name(EVENT_TYPE_DATA_WRITE_REQ), self.on_write_req_event
+            self.get_stream_name(EVENT_TYPE_DATA_WRITE_REQ), self._on_write_req_event
         )
         self._push_event(EVENT_TYPE_DATA_INIT, data={})
 
@@ -103,27 +116,35 @@ class Runtime:
         except Exception as e:
             logger.error(f"Error pushing event: {e}")
 
-    def cleanup(self):
-        self.read_req.unsubscribe()
-        self.write_req.unsubscribe()
-        self._stop_update_thread()
-
-    def on_read_req_event(self, event):
+    # endregion
+    # region - Event Handlers
+    def _on_read_req_event(self, event):
         event_data = event.payload
         variables: list = event_data["variables"]
         for name in variables:
             self._ads_connector.add_read(name)
 
-    def on_write_req_event(self, event):
+    def _on_write_req_event(self, event):
         variables = event.payload["variables"]
         for variable in variables:
             self.queue_write(variable["name"], variable["value"])
 
-    def queue_write(self, name, value):
-        with self.write_lock:
-            self.write_queue[name] = value
+    # endregion
+    # region - Worker Threads
+    def _write_plc_data(self):
+        while self._thread_is_alive:
+            try:
+                if self._is_connected and self.write_queue:
+                    with self.write_lock:
+                        values = self.write_queue
+                        self.write_queue = dict()
+                    self._ads_connector.write_data(values)
+                else:
+                    time.sleep(0.005)
+            except Exception as e:
+                self._push_event(EVENT_TYPE_STATUS, status=f"Error Writing: {e}")
 
-    def _update_plc_data(self):
+    def _read_plc_data(self):
 
         thread_start_time = time.time()
         status_update_time = time.time()
@@ -140,8 +161,8 @@ class Runtime:
                 measure = now
                 jitter = (delta_measure - self._refresh_rate / 1000) * 1000
 
-                if abs(jitter) > 1:
-                    logger.info(f"Jitter: {int(jitter)} ms. Time: {delta_measure}")
+                # if abs(jitter) > 1:
+                logger.info(f"Jitter: {int(jitter)} ms. Time: {delta_measure}")
 
             if sleepy_time > 0:
                 thread_start_time = now + sleepy_time
@@ -154,37 +175,34 @@ class Runtime:
 
             # Catch exceptions and log them to the status field
             try:
-                # Manage connection events
-                connected = self._ads_connector.is_connected()
-
                 # Start the communication if it is not initialized
-                if self._enable_communication and not connected:
-                    self._ads_connector.connect()
-                elif not self._enable_communication and connected:
+                if self._enable_communication and not self._is_connected:
+                    self._push_event(EVENT_TYPE_CONNECTION, status="Connecting")
+                    try:
+                        self._ads_connector.connect()
+                    except Exception as e:  # noqa
+                        self._is_connected = False
+                        self._push_event(
+                            EVENT_TYPE_STATUS, status=f"Error Connecting: {e}"
+                        )
+                    else:
+                        self._is_connected = True
+                        self._push_event(EVENT_TYPE_CONNECTION, status="Connected")
+
+                elif not self._enable_communication and self._is_connected:
                     self._ads_connector.disconnect()
 
-                if connected and not self._was_connected:
-                    self._push_event(EVENT_TYPE_CONNECTION, status="Connecting")
-                elif not connected and self._was_connected:
+                if not self._is_connected and self._was_connected:
                     self._push_event(EVENT_TYPE_CONNECTION, status="Disconnected")
 
-                self._was_connected = connected
+                self._was_connected = self._is_connected
 
-                if not connected or not self._enable_communication:
+                if not self._is_connected or not self._enable_communication:
                     time.sleep(1)
                     continue
 
                 # Write data to the PLC if there is data to write
                 # If there is an exception, log it to the status field but continue reading data
-                try:
-                    if self.write_queue:
-                        with self.write_lock:
-                            values = self.write_queue
-                            self.write_queue = dict()
-                        self._ads_connector.write_data(values)
-                except Exception as e:
-                    self._push_event(EVENT_TYPE_STATUS, status=f"Error Writing: {e}")
-
                 try:
                     self._data = self._ads_connector.read_data()
                     if len(self._data) > 0:
@@ -200,6 +218,8 @@ class Runtime:
         if self._ads_connector:
             self._ads_connector.disconnect()
 
+    # endregion
+    # region - Helper Functions
     def create_message(self, data=None, status=None):
         obj = {"meta": {"name": self._name}}
         if data:
@@ -210,6 +230,19 @@ class Runtime:
 
     def get_stream_name(self, msg_type):
         return get_stream_name(msg_type, self._name)
+
+    # endregion
+    # region - External API
+    def queue_write(self, name, value):
+        with self.write_lock:
+            self.write_queue[name] = value
+
+    def cleanup(self):
+        self.read_req.unsubscribe()
+        self.write_req.unsubscribe()
+        self._stop_update_thread()
+
+    # endregion
 
 
 # A singleton class that manages many PLC Connections

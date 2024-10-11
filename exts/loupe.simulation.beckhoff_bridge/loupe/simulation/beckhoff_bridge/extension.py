@@ -24,7 +24,7 @@ import omni.physx as _physx
 
 from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME
 from .ui_builder import UIBuilder
-from .runtime import System
+from .BeckhoffRuntime import System
 from .BeckhoffBridge import _set_system
 
 """
