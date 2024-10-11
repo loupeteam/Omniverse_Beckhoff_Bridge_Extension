@@ -10,6 +10,7 @@
 from typing import Callable
 import carb.events
 import omni.kit.app
+from .runtime_base import get_stream_name
 
 EVENT_TYPE_DATA_INIT = "loupe.simulation.beckhoff_bridge.DATA_INIT"
 EVENT_TYPE_DATA_READ = "loupe.simulation.beckhoff_bridge.DATA_READ"
@@ -136,7 +137,3 @@ class Manager:
             event_type=get_stream_name(EVENT_TYPE_DATA_WRITE_REQ, self._plc_name),
             payload=payload,
         )
-
-
-def get_stream_name(msg_type, name):
-    return carb.events.type_from_string(f"{msg_type}.{name})")

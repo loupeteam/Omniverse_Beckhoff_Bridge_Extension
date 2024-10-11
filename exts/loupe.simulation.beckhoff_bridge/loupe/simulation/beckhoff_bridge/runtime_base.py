@@ -2,7 +2,7 @@ import time
 import threading
 import logging
 import omni
-from .BeckhoffBridge import get_stream_name
+import carb.events
 from typing import final
 
 logger = logging.getLogger(__name__)
@@ -191,3 +191,7 @@ class Runtime_Base:
         thread.start()
 
     # endregion
+
+
+def get_stream_name(msg_type, name):
+    return carb.events.type_from_string(f"{msg_type}.{name})")
