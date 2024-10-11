@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
     - Methods that should not be overridden by the child class should be prefixed with a double underscore.
     - Do not override anything with @final
     - Anything the has __ should call super().__
-""" 
+"""
+
 
 class Runtime_Base:
     # region - Overridable Methods: These methods should be overridden by the child class
@@ -55,7 +56,6 @@ class Runtime_Base:
         pass
 
     # endregion
-
     # region - Class lifecycle
     def __init__(self, name):
         self._name = name
@@ -173,11 +173,11 @@ class Runtime_Base:
 
     # endregion
     # region - External API
-    @final    
+    @final
     def cleanup(self):
         """
         FINAL - Do not override this method
-        """        
+        """
         self.__stop_update_thread()
         self._cleanup()
 
@@ -185,7 +185,7 @@ class Runtime_Base:
     def _add_thread_method(self, method):
         """
         FINAL - Do not override this method
-        """        
+        """
         thread = threading.Thread(target=method)
         self.__threads.append(thread)
         thread.start()
