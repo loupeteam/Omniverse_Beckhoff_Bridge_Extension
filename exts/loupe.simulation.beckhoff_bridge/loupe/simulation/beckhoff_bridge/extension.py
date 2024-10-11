@@ -92,7 +92,8 @@ class Extension(omni.ext.IExt):
         self._timeline = omni.timeline.get_timeline_interface()
 
     def find_plcs(self):
-        self._plc_manager.add_plc("PLC1", {})
+        pass
+        # self._plc_manager.add_plc("PLC1", {})
 
     def on_shutdown(self):
         self._models = {}

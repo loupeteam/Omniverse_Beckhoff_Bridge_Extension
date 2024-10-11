@@ -112,7 +112,7 @@ class Runtime(Runtime_Base):
                 self._is_connected = True
                 self._push_event(EVENT_TYPE_CONNECTION, status="Connected")
 
-        elif not self._enable_communication and self._is_connected:
+        if not self._enable_communication and self._is_connected:
             self._ads_connector.disconnect()
 
         if not self._is_connected and self._was_connected:
@@ -174,7 +174,7 @@ class System:
 
     def get_plc(self, name: str | int):
         if name not in self._plcs:
-            self._plcs[name] = Runtime(name, self._default_options)
+            return None
         return self._plcs[name]
 
     # Return the names of the PLCs as a list
@@ -182,4 +182,5 @@ class System:
         return list(self._plcs.keys())
 
     def add_plc(self, name, options):
-        self._plcs[name] = Runtime(name, options)
+        if name not in self._plcs:
+            self._plcs[name] = Runtime(name, options)

@@ -44,7 +44,6 @@ class UIBuilder:
         # Internal status flags.
         self._thread_is_alive = True
         self._communication_initialized = False
-        self._ui_initialized = False
 
         # Configuration parameters for the extension.
         # These are exposed on the UI.
@@ -81,6 +80,8 @@ class UIBuilder:
                 get_stream_name(EVENT_TYPE_STATUS, name), self.on_status
             ),
         ]
+
+        self.build_plc_ui()
 
     def unsubscribe_plc(self):
         for subscription in self._plc_subscriptions:
@@ -147,72 +148,119 @@ class UIBuilder:
         This function will be called any time the UI window is closed and reopened.
         """
 
-        plcs = self._plc_manager.get_plc_names()
-        if len(plcs) > 0:
-            self.select_plc(plcs[0])
+        self.plcs = self._plc_manager.get_plc_names()
+        if len(self.plcs) > 0:
+            self.select_plc(self.plcs[0])
 
         with ui.CollapsableFrame("Selection", collapsed=False):
             with ui.VStack(spacing=5, height=0):
+                # Add a new PLC
+                with ui.HStack(spacing=5, height=0):
+                    ui.Label("Add PLC", width=LABEL_WIDTH)
+                    self._plc_name_field = ui.StringField(ui.SimpleStringModel(""))
+                    ui.Button("Add", clicked_fn=self.add_plc, width=BUTTON_WIDTH)
+
                 with ui.HStack(spacing=5, height=0):
                     ui.Label("Select PLC", width=LABEL_WIDTH)
-                    self._plc_dropdown = ui.ComboBox(0, *plcs, selected_index=0)
-                    self._plc_dropdown.model.add_item_changed_fn(self.select_plc)
+                    self._plc_dropdown = ui.ComboBox(0, *self.plcs)
+                    self._plc_dropdown.model.add_item_changed_fn(self.on_plc_selected)
+                    ui.Button("Refresh", clicked_fn=self.refresh_plcs, width=BUTTON_WIDTH)
 
-        with ui.CollapsableFrame("Configuration", collapsed=False):
-            with ui.VStack(spacing=5, height=0):
+        self._plc_ui = ui.VStack(spacing=5, height=0)
 
-                with ui.HStack(spacing=5, height=0):
-                    ui.Label("Enable ADS Client", width=LABEL_WIDTH)
-                    self._enable_communication_checkbox = ui.CheckBox(
-                        ui.SimpleBoolModel(self._enable_communication)
-                    )
-                    self._enable_communication_checkbox.model.add_value_changed_fn(
-                        self._toggle_communication_enable
-                    )
+        if len(self.plcs) == 0:
+            return
 
-                with ui.HStack(spacing=5, height=0):
-                    ui.Label("Refresh Rate (ms)", width=LABEL_WIDTH)
-                    self._refresh_rate_field = ui.IntField(
-                        ui.SimpleIntModel(self._refresh_rate)
-                    )
-                    self._refresh_rate_field.model.set_min(10)
-                    self._refresh_rate_field.model.set_max(10000)
-                    self._refresh_rate_field.model.add_value_changed_fn(
-                        self._on_refresh_rate_changed
-                    )
+        self.build_plc_ui()
 
-                with ui.HStack(spacing=5, height=0):
-                    ui.Label("PLC AMS Net Id", width=LABEL_WIDTH)
-                    self._plc_ams_net_id_field = ui.StringField(
-                        ui.SimpleStringModel(self.beckhoff_bridge_runtime.ams_net_id)
-                    )
-                    self._plc_ams_net_id_field.model.add_value_changed_fn(
-                        self._on_plc_ams_net_id_changed
-                    )
+    def on_plc_selected(self, item_model: ui.AbstractItemModel, item: ui.AbstractItem):
+        plcs = self.plcs
 
-                with ui.HStack(spacing=5, height=0):
-                    ui.Label("Settings", width=LABEL_WIDTH)
-                    ui.Button("Load", clicked_fn=self.load_settings, width=BUTTON_WIDTH)
-                    ui.Button("Save", clicked_fn=self.save_settings, width=BUTTON_WIDTH)
+        if len(plcs) < 1 or item_model.get_item_value_model().as_int >= len(plcs):
+            return
+        selected = self.plcs[item_model.get_item_value_model().as_int]
 
-        with ui.CollapsableFrame("Status", collapsed=False):
-            with ui.VStack(spacing=5, height=0):
-                with ui.HStack(spacing=5, height=0):
-                    ui.Label("Status", width=LABEL_WIDTH)
-                    self._status_field = ui.StringField(
-                        ui.SimpleStringModel("n/a"), read_only=True
-                    )
+        self.select_plc(selected)
 
-        with ui.CollapsableFrame("Monitor", collapsed=False):
-            with ui.VStack(spacing=5, height=0):
-                with ui.HStack(spacing=5, height=100):
-                    ui.Label("Variables", width=LABEL_WIDTH)
-                    self._monitor_field = ui.StringField(
-                        ui.SimpleStringModel("{}"), multiline=True, read_only=True
-                    )
+    def build_plc_ui(self):
+        self._plc_ui.clear()
+        with self._plc_ui:
+            with ui.CollapsableFrame("Configuration", collapsed=False):
 
-        self._ui_initialized = True
+                with ui.VStack(spacing=5, height=0):
 
+                    with ui.HStack(spacing=5, height=0):
+                        ui.Label("Name", width=LABEL_WIDTH)
+                        ui.Label(self.beckhoff_bridge_runtime.name, width=LABEL_WIDTH)
+
+                    with ui.HStack(spacing=5, height=0):
+                        ui.Label("Enable ADS Client", width=LABEL_WIDTH)
+                        self._enable_communication_checkbox = ui.CheckBox(
+                            ui.SimpleBoolModel(self._enable_communication)
+                        )
+                        self._enable_communication_checkbox.model.add_value_changed_fn(
+                            self._toggle_communication_enable
+                        )
+
+                    with ui.HStack(spacing=5, height=0):
+                        ui.Label("Refresh Rate (ms)", width=LABEL_WIDTH)
+                        self._refresh_rate_field = ui.IntField(
+                            ui.SimpleIntModel(self._refresh_rate)
+                        )
+                        self._refresh_rate_field.model.set_min(10)
+                        self._refresh_rate_field.model.set_max(10000)
+                        self._refresh_rate_field.model.add_value_changed_fn(
+                            self._on_refresh_rate_changed
+                        )
+
+                    with ui.HStack(spacing=5, height=0):
+                        ui.Label("PLC AMS Net Id", width=LABEL_WIDTH)
+                        self._plc_ams_net_id_field = ui.StringField(
+                            ui.SimpleStringModel(
+                                self.beckhoff_bridge_runtime.ams_net_id
+                            )
+                        )
+                        self._plc_ams_net_id_field.model.add_value_changed_fn(
+                            self._on_plc_ams_net_id_changed
+                        )
+
+                    with ui.HStack(spacing=5, height=0):
+                        ui.Label("Settings", width=LABEL_WIDTH)
+                        ui.Button(
+                            "Load", clicked_fn=self.load_settings, width=BUTTON_WIDTH
+                        )
+                        ui.Button(
+                            "Save", clicked_fn=self.save_settings, width=BUTTON_WIDTH
+                        )
+
+            with ui.CollapsableFrame("Status", collapsed=False):
+                with ui.VStack(spacing=5, height=0):
+                    with ui.HStack(spacing=5, height=0):
+                        ui.Label("Status", width=LABEL_WIDTH)
+                        self._status_field = ui.StringField(
+                            ui.SimpleStringModel("n/a"), read_only=True
+                        )
+
+            with ui.CollapsableFrame("Monitor", collapsed=False):
+                with ui.VStack(spacing=5, height=0):
+                    with ui.HStack(spacing=5, height=100):
+                        ui.Label("Variables", width=LABEL_WIDTH)
+                        self._monitor_field = ui.StringField(
+                            ui.SimpleStringModel("{}"), multiline=True, read_only=True
+                        )
+
+    def add_plc(self):
+        name = self._plc_name_field.model.as_string
+        self._plc_manager.add_plc(name, {})
+        self.plcs = self._plc_manager.get_plc_names()
+
+        updateComboBox(self._plc_dropdown, self.plcs)
+
+        self.select_plc(self.plcs[len(self.plcs) - 1])
+
+    def refresh_plcs(self):
+        self.plcs = self._plc_manager.get_plc_names()
+        updateComboBox(self._plc_dropdown, self.plcs)
     ####################################
     ####################################
     # Manage Settings
@@ -265,3 +313,15 @@ class UIBuilder:
         self._enable_communication_checkbox.model.set_value(
             self.beckhoff_bridge_runtime.enable_communication
         )
+
+
+def updateComboBox(comboBox, items):
+    combo_box = comboBox.model
+    ...
+    # clean combo box
+    for item in combo_box.get_item_children():
+        combo_box.remove_item(item)
+    ...
+    # fill combo box
+    for value in items:
+        combo_box.append_child_item(None, ui.SimpleStringModel(value))
