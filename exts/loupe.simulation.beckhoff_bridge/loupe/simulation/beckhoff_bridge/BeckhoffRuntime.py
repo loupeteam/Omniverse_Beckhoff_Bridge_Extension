@@ -38,6 +38,12 @@ class Runtime(Runtime_Base):
         self._log_jitter = options.get("LOG_JITTER") or True
         self._enable_communication = options.get("ENABLE_COMMUNICATION") or False
 
+        variables = options.get("READ_VARIABLES", "")
+        if variables:
+            variables = variables.split(",")
+            for name in variables:
+                self._ads_connector.add_read(name.strip())            
+
     # endregion
     # region - Properties
     ams_net_id = property(
@@ -133,6 +139,9 @@ class Runtime(Runtime_Base):
                 self._push_event(EVENT_TYPE_DATA_READ, data=self._data)
         except Exception as e:
             self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
+            if e.err_code == 1808:
+                variables = self._ads_connector._read_names
+                self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading One Of: {variables}")
 
     def _read_data_ending(self):
         if self._ads_connector:

@@ -22,7 +22,7 @@ from .BeckhoffBridge import (
 import time
 from threading import Timer
 from .BeckhoffBridge import get_system
-
+import json
 logger = logging.getLogger(__name__)
 
 
@@ -124,7 +124,8 @@ class UIBuilder:
 
     def on_data_read(self, event):
         data = event.payload["data"]
-        self._monitor_field.model.set_value(str(data))
+        data = json.dumps(data, indent=2, sort_keys=True)
+        self._monitor_field.model.set_value(data)
         self.update_status()
 
     def on_menu_callback(self):
@@ -234,7 +235,7 @@ class UIBuilder:
 
             with ui.CollapsableFrame("Monitor", collapsed=False):
                 with ui.VStack(spacing=5, height=0):
-                    with ui.HStack(spacing=5, height=100):
+                    with ui.HStack(spacing=5, height=500):
                         ui.Label("Variables", width=LABEL_WIDTH)
                         self._monitor_field = ui.StringField(
                             ui.SimpleStringModel("{}"), multiline=True, read_only=True
