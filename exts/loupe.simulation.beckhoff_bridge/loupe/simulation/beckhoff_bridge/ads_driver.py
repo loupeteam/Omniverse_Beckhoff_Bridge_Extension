@@ -36,6 +36,8 @@ class AdsDriver():
         self._read_names = list()
         self._read_struct_def = dict()
         self._connection = None
+        self._connection_write = None
+
         
     def add_read(self, name : str, structure_def = None):
         """
@@ -63,7 +65,7 @@ class AdsDriver():
             data = {'MAIN.b_Execute': False, 'MAIN.str_TestString': 'Goodbye World', 'MAIN.r32_TestReal': 54.321}
 
         """
-        self._connection.write_list_by_name(data)
+        self._connection_write.write_list_by_name(data)
 
     def read_data(self):
         """
@@ -184,6 +186,11 @@ class AdsDriver():
 
         self._connection = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
         self._connection.open()
+        adsState, deviceState = self._connection.read_state()
+
+        self._connection_write = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
+        self._connection_write.open()
+
 
     def disconnect(self):
         """
