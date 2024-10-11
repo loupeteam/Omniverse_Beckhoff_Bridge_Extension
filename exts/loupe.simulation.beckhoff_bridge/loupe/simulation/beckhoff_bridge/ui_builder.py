@@ -157,7 +157,7 @@ class UIBuilder:
                 # Add a new PLC
                 with ui.HStack(spacing=5, height=0):
                     ui.Label("Add PLC", width=LABEL_WIDTH)
-                    self._plc_name_field = ui.StringField(ui.SimpleStringModel(""))
+                    self._plc_name_field = ui.StringField(ui.SimpleStringModel("PLC1"))
                     ui.Button("Add", clicked_fn=self.add_plc, width=BUTTON_WIDTH)
 
                 with ui.HStack(spacing=5, height=0):
