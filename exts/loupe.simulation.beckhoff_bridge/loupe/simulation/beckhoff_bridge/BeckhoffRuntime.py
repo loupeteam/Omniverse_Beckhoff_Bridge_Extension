@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 class Runtime(Runtime_Base):
     # region - Class lifecycle
     def __init__(self, name="PLC1", options={}):
-        self._name = name
+
         self._ads_connector = AdsDriver(options.get("PLC_AMS_NET_ID", "127.0.0.1.1.1"))
 
-        super().__init__()
+        super().__init__(name)
 
         self.write_queue = dict()
         self.write_lock = RLock()
@@ -36,7 +36,6 @@ class Runtime(Runtime_Base):
         self.refresh_rate = options.get("REFRESH_RATE") or 20
         self._log_jitter = options.get("LOG_JITTER") or True
         self._enable_communication = options.get("ENABLE_COMMUNICATION") or False
-
 
     # endregion
     # region - Properties
@@ -67,10 +66,10 @@ class Runtime(Runtime_Base):
     def _subscibe_event_stream(self, stream):
 
         self.read_req = stream.create_subscription_to_push_by_type(
-            self.get_stream_name(EVENT_TYPE_DATA_READ_REQ), self._on_read_req_event
+            self._get_stream_name(EVENT_TYPE_DATA_READ_REQ), self._on_read_req_event
         )
         self.write_req = stream.create_subscription_to_push_by_type(
-            self.get_stream_name(EVENT_TYPE_DATA_WRITE_REQ), self._on_write_req_event
+            self._get_stream_name(EVENT_TYPE_DATA_WRITE_REQ), self._on_write_req_event
         )
         self._push_event(EVENT_TYPE_DATA_INIT, data={})
 
@@ -96,8 +95,6 @@ class Runtime(Runtime_Base):
                     values = self.write_queue
                     self.write_queue = dict()
                 self._ads_connector.write_data(values)
-            else:
-                time.sleep(0.005)
         except Exception as e:
             self._push_event(EVENT_TYPE_STATUS, status=f"Error Writing: {e}")
 
@@ -110,9 +107,7 @@ class Runtime(Runtime_Base):
                 self._ads_connector.connect()
             except Exception as e:  # noqa
                 self._is_connected = False
-                self._push_event(
-                    EVENT_TYPE_STATUS, status=f"Error Connecting: {e}"
-                )
+                self._push_event(EVENT_TYPE_STATUS, status=f"Error Connecting: {e}")
             else:
                 self._is_connected = True
                 self._push_event(EVENT_TYPE_CONNECTION, status="Connected")
@@ -148,10 +143,9 @@ class Runtime(Runtime_Base):
         with self.write_lock:
             self.write_queue[name] = value
 
-    def cleanup(self):
+    def _cleanup(self):
         self.read_req.unsubscribe()
         self.write_req.unsubscribe()
-        self._stop_update_thread()
 
     # endregion
 

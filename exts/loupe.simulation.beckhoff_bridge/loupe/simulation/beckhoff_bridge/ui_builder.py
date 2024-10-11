@@ -20,6 +20,7 @@ from .BeckhoffBridge import (
     get_stream_name,
 )
 import time
+from threading import Timer
 from .BeckhoffBridge import get_system
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class UIBuilder:
         self._plc_subscriptions = []
 
         self._status_stack = dict()
+        self._timer = None
 
     beckhoff_bridge_runtime = property(
         lambda self: self._plc_manager.get_plc(self._active_plc)
@@ -93,7 +95,13 @@ class UIBuilder:
 
     def update_status(self):
         self.clean_status()
-        self._status_field.model.set_value(str(self.get_status()))
+        status = str(self.get_status())
+        self._status_field.model.set_value(status)
+        if status != "[]":
+            if self._timer:
+                self._timer.cancel()
+            self._timer = Timer(3, self.update_status)
+            self._timer.start()
 
     def on_status(self, event):
         data = event.payload["status"]
