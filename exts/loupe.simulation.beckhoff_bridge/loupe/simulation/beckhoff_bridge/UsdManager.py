@@ -134,6 +134,31 @@ class RuntimeUsd:
             .create_subscription_to_pop(self.on_update_event, name="subscription Name")
         )
 
+        self._stage = self._usd_context.get_stage()
+        self._stage_listener = Tf.Notice.Register(Usd.Notice.ObjectsChanged, self._notice_changed, self._stage)
+
+
+    def _notice_changed(self, notice, stage):
+        if self._stage.expired:
+            return
+        # for changed in notice.GetResyncedPaths():
+        #     print(f"Resynced: {changed}")
+        for changed in notice.GetChangedInfoOnlyPaths():
+            if(str(changed).startswith(self.prim_path)):
+                if(str(changed).endswith(".write")):
+                    # Get the value of the write attribute
+                    changed = str(changed).split(".")[0]
+                    prim = self._stage.GetPrimAtPath(str(changed))
+                    write_attr = prim.GetAttribute("write")
+                    if write_attr.Get():
+                        # Set the write attribute to False
+                        write_attr.Set(False)
+                        # Get the value attribute
+                        value_attr = prim.GetAttribute("value")
+                        # TODO: THis should write to the PLC
+                        value_attr.Set(prim.GetAttribute("write_value").Get())
+                        print(f"Changed: {changed}")
+
     # callback
     def on_update_event(self, event):
 
@@ -163,14 +188,29 @@ class RuntimeUsd:
                     attr = prim.CreateAttribute("value", Sdf.ValueTypeNames.Double)
             attr.Set(value)
 
+            write_attr = prim.GetAttribute("write_value")
+            if not write_attr:
+                write_attr = prim.CreateAttribute("write_value", attr.GetTypeName())
+            write_attr = prim.GetAttribute("write")
+            if not write_attr:
+                write_attr = prim.CreateAttribute("write", Sdf.ValueTypeNames.Bool)
+
+
+
     def unsubscribe_stage(self):
         # unsubscription
         self._update_event_sub = None
         self._stage_event_sub = None
+        self._stage_listener = None
 
     def _on_stage_event(self, event):
         if event.type == int(StageEventType.OPENED):
             self._stage = self._usd_context.get_stage()
+            self._stage_listener = Tf.Notice.Register(Usd.Notice.ObjectsChanged, self._notice_changed, self._stage)
+
+        if event.type == int(StageEventType.HIERARCHY_CHANGED):
+            pass
+
 
     def subscribe_plc(self):
         self._plc_subscriptions = [
