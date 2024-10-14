@@ -1,7 +1,28 @@
 import omni
 from pxr import Sdf
-from .runtime import Runtime
+from .Runtime import Runtime
 from ..common.UsdManager import RuntimeUsd
+from .BeckhoffBridge import Manager
+from .global_variables import (
+    ATTR_BECKHOFF_BRIDGE_AMS_NET_ID,
+    ATTR_BECKHOFF_BRIDGE_ENABLE,
+    ATTR_BECKHOFF_BRIDGE_READ_VARS,
+    ATTR_BECKHOFF_BRIDGE_REFRESH,
+)  # noqa: E501
+
+
+default_properties = {
+    ATTR_BECKHOFF_BRIDGE_ENABLE: False,
+    ATTR_BECKHOFF_BRIDGE_REFRESH: 20,
+    ATTR_BECKHOFF_BRIDGE_AMS_NET_ID: "127.0.0.1.1.1",
+    ATTR_BECKHOFF_BRIDGE_READ_VARS: "",  # Ideally this should be a list of variables, but they aren't support on the gui
+}
+
+
+class Components:
+    def __init__(self, runtime, usd):
+        self.runtime = runtime
+        self.usd = usd
 
 
 # A singleton class that manages many PLC Connections
@@ -10,104 +31,119 @@ class System:
         self.init()
 
     def init(self):
-        self._plcs = dict()
-        self._usd_managers = dict()
-        self._default_options = {
-            "PLC_AMS_NET_ID": "127.0.0.1.1.1",
-            "REFRESH_RATE": 20,
-            "ENABLE_COMMUNICATION": False,
-            "LOG_JITTER": False,
-        }
+        self._components = dict()
 
-    def find_plcs():
+    def update_stage_plcs(self):
+        plcs = self.find_plcs()
+        for name, options in plcs.items():
+            if name not in self._plcs:
+                self.add_plc(name, options)
+
+    def find_and_create_plcs(self):
+        plcs = self.find_plcs()
+        if plcs is None:
+            return
+        for name, options in plcs.items():
+            if name not in self._components:
+                self.add_plc(name, options)
+
+        #remove plcs that are not in the stage
+        for name in list(self._components.keys()):
+            if name not in plcs:
+                self._components[name].runtime.cleanup()
+                self._components[name].usd.cleanup()
+                del self._components[name]
+
+        return self.get_plc_names()
+
+    def find_plcs(self):
         stage = omni.usd.get_context().get_stage()
         if stage is None:
             return
         plcs_prims = []
         for prim in stage.Traverse():
-            if prim.GetAttribute("beckhoff_bridge:Enable"):
+            if prim.GetAttribute(ATTR_BECKHOFF_BRIDGE_ENABLE):
                 plcs_prims.append(prim)
         # For all the prims found, get the prim name and add it to the list
         names = dict()
         for plc in plcs_prims:
             name = plc.GetPath().pathString.split("/")[-1]
-            options = RuntimeUsd.get_options(plc)
-            names[name] = options
+            names[name] = get_options(plc)
         return names
 
+    def create_plc(self, name: str, options: dict):
+        create_plc_prim = omni.usd.get_context().get_stage().DefinePrim("/PLC/" + name)
+        set_options(create_plc_prim, options)
+
     def cleanup(self):
-        for plc in self._plcs.values():
-            plc.cleanup()
-            del plc
+        for plc in self._components.values():
+            plc.runtime.cleanup()
+            plc.usd.cleanup()
 
-        for man in self._usd_managers.values():
-            man.cleanup()
-            del man
-
-        self._plcs.clear()
-        self._usd_managers.clear()
-
-    def set_default_options(self, options):
-        self._default_options = options
-
-    def get_options(plc_prim):
-        options = {
-            "REFRESH_RATE": plc_prim.GetAttribute("beckhoff_bridge:RefreshRate").Get(),
-            "PLC_AMS_NET_ID": plc_prim.GetAttribute("beckhoff_bridge:AmsNetId").Get(),
-            "ENABLE_COMMUNICATION": plc_prim.GetAttribute(
-                "beckhoff_bridge:Enable"
-            ).Get(),
-            "READ_VARIABLES": plc_prim.GetAttribute("beckhoff_bridge:Variables").Get(),
-        }
-        return options
+        self._components.clear()
 
     def init_properties(self):
-        default_properties = {
-            "beckhoff_bridge:Enable": False,
-            "beckhoff_bridge:RefreshRate": 20,
-            "beckhoff_bridge:AmsNetId": "127.0.0.1.1.1",
-            "beckhoff_bridge:Variables": "",  # Ideally this should be a list of variables, but they aren't support on the gui
-        }
-        RuntimeUsd.set_options(self._plc_prim, default_properties)
-
-    def set_options(plc_prim, options):
-        # option_set = {
-        #     "beckhoff_bridge:RefreshRate": options.get("REFRESH_RATE") or 20,
-        #     "beckhoff_bridge:AmsNetId": options.get("PLC_AMS_NET_ID") or "127.0.0.1.1.1",
-        #     "beckhoff_bridge:Enable": options.get("ENABLE_COMMUNICATION") or False,
-        #     "beckhoff_bridge:Variables": options.get("READ_VARIABLES") or "",
-        #     "beckhoff_bridge:VariableArray": options.get("READ_VARIABLES") or "",
-        # }
-        for key, value in options.items():
-            attr = plc_prim.GetAttribute(key)
-            if not attr:
-                if type(value) is bool:
-                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.Bool)
-                elif type(value) is int:
-                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.Int)
-                elif type(value) is str:
-                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.String)
-                elif type(value) is list:
-                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.StringArray)
-            attr.Set(value)
+        set_options(self._plc_prim, default_properties)
 
     def get_plc(self, name: str | int):
-        if name not in self._plcs:
+        if name not in self._components:
             return None
-        return self._plcs[name]
+        return self._components[name].runtime
+
+    def write_options_to_stage(self, plc_name):
+        plc = self.get_plc(plc_name)
+        if plc is None:
+            return
+        plc_prim = omni.usd.get_context().get_stage().GetPrimAtPath("/PLC/" + plc_name)
+        set_options(plc_prim, plc.options)
+
+    def read_options_from_stage(self, plc_name):
+        plc = self.get_plc(plc_name)
+        if plc is None:
+            return
+        plc_prim = omni.usd.get_context().get_stage().GetPrimAtPath("/PLC/" + plc_name)
+        if plc_prim is None:
+            return
+        plc.options = get_options(plc_prim)
 
     # Return the names of the PLCs as a list
     def get_plc_names(self):
         plc = self.find_plcs()
-        self.cleanup()
-        if plc:
-            for name, options in plc.items():
-                if name not in self._plcs:
-                    self.add_plc(name, options)
-
-        return list(self._plcs.keys())
+        if plc is None:
+            return []
+        return list(self._components.keys())
 
     def add_plc(self, name, options):
-        if name not in self._plcs:
-            self._plcs[name] = Runtime(name, options)
-            self._usd_managers[name] = RuntimeUsd(name)
+        input_options = default_properties
+        input_options.update(options)
+        self.create_plc(name, input_options)
+        if name not in self._components:
+            self._components[name] = Components(
+                Runtime(name, input_options), RuntimeUsd("/PLC/" + name, Manager(name))
+            )
+
+
+def get_options(plc_prim):
+
+    options = default_properties.copy()
+    for option in default_properties:
+        attr = plc_prim.GetAttribute(option)
+        if attr.IsValid():
+            options[option] = attr.Get()
+
+    return options
+
+
+def set_options(plc_prim, options):
+    for key, value in options.items():
+        attr = plc_prim.GetAttribute(key)
+        if not attr:
+            if type(value) is bool:
+                attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.Bool)
+            elif type(value) is int:
+                attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.Int)
+            elif type(value) is str:
+                attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.String)
+            elif type(value) is list:
+                attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.StringArray)
+        attr.Set(value)

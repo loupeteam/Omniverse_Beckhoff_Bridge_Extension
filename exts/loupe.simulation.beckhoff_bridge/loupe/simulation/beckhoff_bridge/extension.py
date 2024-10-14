@@ -53,7 +53,6 @@ class Extension(omni.ext.IExt):
         """Initialize extension and UI elements"""
 
         self._plc_manager = System()
-        self._plc_manager.set_default_options(options)
         _set_system(self._plc_manager)
 
         # Events
@@ -90,7 +89,7 @@ class Extension(omni.ext.IExt):
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
-        self.find_plcs()
+        self._plc_manager.find_and_create_plcs()
 
     def find_plcs(self):
         self._plc_manager.find_plcs()

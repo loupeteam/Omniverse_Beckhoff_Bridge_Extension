@@ -10,7 +10,8 @@
 from typing import Callable
 import carb.events
 import omni.kit.app
-from .runtime_base import get_stream_name
+from ..common.RuntimeBase import get_stream_name
+from ..common.BridgeManager import BridgeManager
 
 EVENT_TYPE_DATA_INIT = "loupe.simulation.beckhoff_bridge.DATA_INIT"
 EVENT_TYPE_DATA_READ = "loupe.simulation.beckhoff_bridge.DATA_READ"
@@ -33,7 +34,7 @@ def _set_system(m):
     manager = m
 
 
-class Manager:
+class Manager(BridgeManager):
     """
     BeckhoffBridge class provides an interface for interacting with the Beckhoff Bridge Extension.
     It can be used in Python scripts to read and write variables.

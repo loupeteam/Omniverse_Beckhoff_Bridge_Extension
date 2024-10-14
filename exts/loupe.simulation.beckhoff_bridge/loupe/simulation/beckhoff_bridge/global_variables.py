@@ -12,3 +12,8 @@
 EXTENSION_TITLE = "Beckhoff Bridge"
 EXTENSION_NAME = "loupe.simulation.beckhoff_bridge"
 EXTENSION_DESCRIPTION = "Bridge to Beckhoff PLCs"
+
+ATTR_BECKHOFF_BRIDGE_AMS_NET_ID = "beckhoff_bridge:AmsNetId"
+ATTR_BECKHOFF_BRIDGE_ENABLE = "beckhoff_bridge:Enable"
+ATTR_BECKHOFF_BRIDGE_REFRESH = "beckhoff_bridge:RefreshRate"
+ATTR_BECKHOFF_BRIDGE_READ_VARS = "beckhoff_bridge:Variables"

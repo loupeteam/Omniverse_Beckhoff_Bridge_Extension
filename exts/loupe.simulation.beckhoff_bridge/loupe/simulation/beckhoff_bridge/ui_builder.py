@@ -19,10 +19,12 @@ from .BeckhoffBridge import (
     EVENT_TYPE_STATUS,
     get_stream_name,
 )
+import asyncio
 import time
 from threading import Timer
 from .BeckhoffBridge import get_system
 import json
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,7 +74,7 @@ class UIBuilder:
             ),
         ]
 
-        self.build_plc_ui()
+        asyncio.ensure_future(self.build_plc_ui())
 
     def unsubscribe_plc(self):
         for subscription in self._plc_subscriptions:
@@ -154,7 +156,9 @@ class UIBuilder:
                     ui.Label("Select PLC", width=LABEL_WIDTH)
                     self._plc_dropdown = ui.ComboBox(0, *self.plcs)
                     self._plc_dropdown.model.add_item_changed_fn(self.on_plc_selected)
-                    ui.Button("Refresh", clicked_fn=self.refresh_plcs, width=BUTTON_WIDTH)
+                    ui.Button(
+                        "Refresh", clicked_fn=self.refresh_plcs, width=BUTTON_WIDTH
+                    )
 
         self._plc_ui = ui.VStack(spacing=5, height=0)
 
@@ -162,7 +166,7 @@ class UIBuilder:
 
         if len(self.plcs) == 0:
             return
-        
+
         self.select_plc(self.plcs[0])
 
     def on_plc_selected(self, item_model: ui.AbstractItemModel, item: ui.AbstractItem):
@@ -174,7 +178,7 @@ class UIBuilder:
 
         self.select_plc(selected)
 
-    def build_plc_ui(self):
+    async def build_plc_ui(self):
         self._plc_ui.clear()
         with self._plc_ui:
             with ui.CollapsableFrame("Configuration", collapsed=False):
@@ -188,7 +192,9 @@ class UIBuilder:
                     with ui.HStack(spacing=5, height=0):
                         ui.Label("Enable ADS Client", width=LABEL_WIDTH)
                         self._enable_communication_checkbox = ui.CheckBox(
-                            ui.SimpleBoolModel(self.beckhoff_bridge_runtime.enable_communication)
+                            ui.SimpleBoolModel(
+                                self.beckhoff_bridge_runtime.enable_communication
+                            )
                         )
                         self._enable_communication_checkbox.model.add_value_changed_fn(
                             self._toggle_communication_enable
@@ -243,7 +249,7 @@ class UIBuilder:
 
     def add_plc(self):
         name = self._plc_name_field.model.as_string
-        self._plc_manager.add_plc(name, {})
+        self._plc_manager.add_plc(name, {"beckhoff_bridge:RefreshRate": 10})
         self.plcs = self._plc_manager.get_plc_names()
 
         updateComboBox(self._plc_dropdown, self.plcs)
@@ -251,8 +257,9 @@ class UIBuilder:
         self.select_plc(self.plcs[len(self.plcs) - 1])
 
     def refresh_plcs(self):
-        self.plcs = self._plc_manager.get_plc_names()
+        self.plcs = self._plc_manager.find_and_create_plcs()
         updateComboBox(self._plc_dropdown, self.plcs)
+
     ####################################
     ####################################
     # Manage Settings
@@ -283,28 +290,11 @@ class UIBuilder:
         self.beckhoff_bridge_runtime.enable_communication = state.get_value_as_bool()
 
     def save_settings(self):
-        self.set_setting("REFRESH_RATE", self.beckhoff_bridge_runtime.refresh_rate)
-        self.set_setting("PLC_AMS_NET_ID", self.beckhoff_bridge_runtime.ams_net_id)
-        self.set_setting(
-            "ENABLE_COMMUNICATION", self.beckhoff_bridge_runtime.enable_communication
-        )
+        self._plc_manager.write_options_to_stage(self._active_plc)
 
     def load_settings(self):
-        self.beckhoff_bridge_runtime.refresh_rate = self.get_setting("REFRESH_RATE")
-        self.beckhoff_bridge_runtime.ams_net_id = self.get_setting("PLC_AMS_NET_ID")
-        self.beckhoff_bridge_runtime.enable_communication = self.get_setting(
-            "ENABLE_COMMUNICATION"
-        )
-
-        self._refresh_rate_field.model.set_value(
-            self.beckhoff_bridge_runtime.refresh_rate
-        )
-        self._plc_ams_net_id_field.model.set_value(
-            self.beckhoff_bridge_runtime.ams_net_id
-        )
-        self._enable_communication_checkbox.model.set_value(
-            self.beckhoff_bridge_runtime.enable_communication
-        )
+        self._plc_manager.read_options_from_stage(self._active_plc)
+        asyncio.ensure_future(self.build_plc_ui())
 
 
 def updateComboBox(comboBox, items):

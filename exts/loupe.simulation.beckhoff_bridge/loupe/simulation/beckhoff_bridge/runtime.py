@@ -1,10 +1,12 @@
 import time
 import logging
-import omni
+
 from threading import RLock
 from .Communication import CommunicationDriver
-from .runtime_base import Runtime_Base
-from .UsdManager import RuntimeUsd
+from ..common.RuntimeBase import Runtime_Base
+
+from .global_variables import (ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, ATTR_BECKHOFF_BRIDGE_ENABLE, ATTR_BECKHOFF_BRIDGE_READ_VARS, ATTR_BECKHOFF_BRIDGE_REFRESH) # noqa: E501
+
 from .BeckhoffBridge import (
     EVENT_TYPE_DATA_READ,
     EVENT_TYPE_DATA_READ_REQ,
@@ -13,7 +15,6 @@ from .BeckhoffBridge import (
     EVENT_TYPE_CONNECTION,
     EVENT_TYPE_ENABLE,
     EVENT_TYPE_STATUS,
-    Manager,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ class Runtime(Runtime_Base):
     # region - Class lifecycle
     def __init__(self, name="PLC1", options={}):
 
-        self._ads_connector = CommunicationDriver(options.get("PLC_AMS_NET_ID", "127.0.0.1.1.1"))
+        self._ads_connector = CommunicationDriver(options.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1"))
 
         super().__init__(name)
 
@@ -33,11 +34,11 @@ class Runtime(Runtime_Base):
         self._was_connected = False
         self._is_connected = False
 
-        self.refresh_rate = options.get("REFRESH_RATE") or 20
+        self.refresh_rate = options.get(ATTR_BECKHOFF_BRIDGE_REFRESH) or 20
         self._log_jitter = options.get("LOG_JITTER") or True
-        self._enable_communication = options.get("ENABLE_COMMUNICATION") or False
+        self._enable_communication = options.get(ATTR_BECKHOFF_BRIDGE_ENABLE) or False
 
-        variables = options.get("READ_VARIABLES", "")
+        variables = options.get(ATTR_BECKHOFF_BRIDGE_READ_VARS, "")
         if variables:
             variables = variables.split(",")
             for name in variables:
@@ -60,6 +61,27 @@ class Runtime(Runtime_Base):
     )
 
     name = property(lambda self: self._name)
+
+    @property
+    def options(self):
+        return {
+            ATTR_BECKHOFF_BRIDGE_AMS_NET_ID: self.ams_net_id,
+            ATTR_BECKHOFF_BRIDGE_ENABLE: self.enable_communication,
+            ATTR_BECKHOFF_BRIDGE_REFRESH: self.refresh_rate,
+            ATTR_BECKHOFF_BRIDGE_READ_VARS: ",".join(self._ads_connector._read_names),
+        }
+
+    @options.setter
+    def options(self, value):
+        self.ams_net_id = value.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, self.ams_net_id)
+        self.enable_communication = value.get(ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication)
+        self.refresh_rate = value.get(ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
+        variables = value.get(ATTR_BECKHOFF_BRIDGE_READ_VARS, self._ads_connector._read_names)
+        if variables:
+            variables = variables.split(",")
+            for name in variables:
+                self._ads_connector.add_read(name.strip())
+
 
     def _set_enable_communication(self, value):
         self._enable_communication = value
