@@ -1,0 +1,2 @@
+
+LOUPE_MENU_ITEM_NAME = "Loupe"

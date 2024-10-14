@@ -22,11 +22,10 @@ from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescr
 from omni.usd import StageEventType
 import omni.physx as _physx
 
-from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION, EXTENSION_NAME
+from .global_variables import EXTENSION_TITLE
 from .ui_builder import UIBuilder
-from .BeckhoffRuntime import System
+from .System import System
 from .BeckhoffBridge import _set_system
-from .UsdManager import RuntimeUsd
 
 """
 This file serves as a basic template for the standard boilerplate operations
@@ -94,11 +93,7 @@ class Extension(omni.ext.IExt):
         self.find_plcs()
 
     def find_plcs(self):
-        plcs = RuntimeUsd.find_plcs()
-        if plcs is None:
-            return
-        for plc in plcs:
-            self._plc_manager.add_plc(plc, plcs[plc])
+        self._plc_manager.find_plcs()
 
     def on_shutdown(self):
         self._models = {}
@@ -164,41 +159,6 @@ class Extension(omni.ext.IExt):
             self._plc_manager.cleanup()
             self.find_plcs()
             
-
     def _build_extension_ui(self):
         # Call user function for building UI
         self.ui_builder.build_ui()
-
-
-class LocalSettings:
-    def __init__(self):
-        self.settings_interface = get_settings()
-
-    def get_setting(self, name, default_value=None):
-        setting = self.settings_interface.get(
-            "/persistent/" + EXTENSION_NAME + "/" + name
-        )
-        if setting is None:
-            setting = default_value
-            self.settings_interface.set(
-                "/persistent/" + EXTENSION_NAME + "/" + name, setting
-            )
-        return setting
-
-    def set_setting(self, name, value):
-        self.settings_interface.set("/persistent/" + EXTENSION_NAME + "/" + name, value)
-
-    def save_settings(self):
-        self.settings_interface.save_settings()
-
-
-# Singleton instance of beckhoff_bridge_runtime
-
-# These are exposed on the UI.
-# Get the settings interface
-settings = LocalSettings()
-options = {
-    "PLC_AMS_NET_ID": settings.get_setting("PLC_AMS_NET_ID", "127.0.0.1.1.1"),
-    "REFRESH_RATE": settings.get_setting("REFRESH_RATE", 20),
-    "ENABLE_COMMUNICATION": settings.get_setting("ENABLE_COMMUNICATION", False),
-}
