@@ -1,7 +1,5 @@
 import time
-import threading
 import logging
-import carb.events
 import omni
 from threading import RLock
 from .ads_driver import AdsDriver
@@ -15,6 +13,7 @@ from .BeckhoffBridge import (
     EVENT_TYPE_CONNECTION,
     EVENT_TYPE_ENABLE,
     EVENT_TYPE_STATUS,
+    Manager
 )
 
 logger = logging.getLogger(__name__)
@@ -176,6 +175,22 @@ class System:
             "LOG_JITTER": False,
         }
 
+    def find_plcs():
+        stage = omni.usd.get_context().get_stage()
+        if stage is None:
+            return
+        plcs_prims = []
+        for prim in stage.Traverse():
+            if prim.GetAttribute("beckhoff_bridge:Enable"):
+                plcs_prims.append(prim)
+        # For all the prims found, get the prim name and add it to the list
+        names = dict()
+        for plc in plcs_prims:
+            name = plc.GetPath().pathString.split("/")[-1]
+            options = RuntimeUsd.get_options(plc)
+            names[name] = options
+        return names
+
     def cleanup(self):
         for plc in self._plcs.values():
             plc.cleanup()
@@ -191,6 +206,45 @@ class System:
     def set_default_options(self, options):
         self._default_options = options
 
+    def get_options(plc_prim):
+        options = {
+            "REFRESH_RATE": plc_prim.GetAttribute("beckhoff_bridge:RefreshRate").Get(),
+            "PLC_AMS_NET_ID": plc_prim.GetAttribute("beckhoff_bridge:AmsNetId").Get(),
+            "ENABLE_COMMUNICATION": plc_prim.GetAttribute("beckhoff_bridge:Enable").Get(),
+            "READ_VARIABLES": plc_prim.GetAttribute("beckhoff_bridge:Variables").Get(),
+        }
+        return options
+
+    def init_properties(self):
+        default_properties = {
+            "beckhoff_bridge:Enable": False,
+            "beckhoff_bridge:RefreshRate": 20,
+            "beckhoff_bridge:AmsNetId": "127.0.0.1.1.1",
+            "beckhoff_bridge:Variables": "",  # Ideally this should be a list of variables, but they aren't support on the gui
+        }
+        RuntimeUsd.set_options(self._plc_prim, default_properties)
+
+    def set_options(plc_prim, options):
+        # option_set = {
+        #     "beckhoff_bridge:RefreshRate": options.get("REFRESH_RATE") or 20,
+        #     "beckhoff_bridge:AmsNetId": options.get("PLC_AMS_NET_ID") or "127.0.0.1.1.1",
+        #     "beckhoff_bridge:Enable": options.get("ENABLE_COMMUNICATION") or False,
+        #     "beckhoff_bridge:Variables": options.get("READ_VARIABLES") or "",
+        #     "beckhoff_bridge:VariableArray": options.get("READ_VARIABLES") or "",
+        # }
+        for key, value in options.items():
+            attr = plc_prim.GetAttribute(key)
+            if not attr:
+                if type(value) is bool:
+                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.Bool)
+                elif type(value) is int:
+                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.Int)
+                elif type(value) is str:
+                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.String)
+                elif type(value) is list:
+                    attr = plc_prim.CreateAttribute(key, Sdf.ValueTypeNames.StringArray)
+            attr.Set(value)
+
     def get_plc(self, name: str | int):
         if name not in self._plcs:
             return None
@@ -198,7 +252,7 @@ class System:
 
     # Return the names of the PLCs as a list
     def get_plc_names(self):
-        plc = RuntimeUsd.find_plcs()
+        plc = self.find_plcs()
         self.cleanup()
         if plc:
             for name, options in plc.items():
