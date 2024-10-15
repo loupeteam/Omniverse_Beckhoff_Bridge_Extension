@@ -173,6 +173,13 @@ class Runtime(Runtime_Base):
     # endregion
 
     # region - External API
+    def set_read_variables(self, variables):
+        self._ads_connector._read_names = []
+        for name in variables:
+            # Validate the name
+            if name != "":
+                self._ads_connector.add_read(name)
+
     def queue_write(self, name, value):
         with self.write_lock:
             self.write_queue[name] = value
