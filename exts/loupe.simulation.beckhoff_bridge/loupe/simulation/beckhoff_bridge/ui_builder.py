@@ -24,6 +24,7 @@ import time
 from threading import Timer
 from .BeckhoffBridge import get_system
 import json
+import omni.isaac.ui as ui_utils
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +128,11 @@ class UIBuilder:
     def on_data_read(self, event):
         data = event.payload["data"]
         data = json.dumps(data, indent=2, sort_keys=True)
-        self._monitor_field.model.set_value(data)
-        self.update_status()
+        try:
+            self._monitor_field.model.set_value(data)
+            self.update_status()
+        except Exception:
+            pass
 
     def on_menu_callback(self):
         """Callback for when the UI is opened from the toolbar.
@@ -231,6 +235,23 @@ class UIBuilder:
                             "Save", clicked_fn=self.save_settings, width=BUTTON_WIDTH
                         )
 
+            with ui.CollapsableFrame("Cyclic Read Variables", collapsed=False):
+                with ui.VStack(spacing=5, height=0):
+                    with ui.HStack(spacing=5, height=300):
+                        ui.Label("Variables", width=LABEL_WIDTH)
+                        self._variables_field = ui.StringField(
+                            ui.SimpleStringModel(
+                                "\n".join(
+                                    self.beckhoff_bridge_runtime._ads_connector._read_names
+                                )
+                            ),
+
+                            multiline=True,
+                        )
+                        self._variables_field.model.add_end_edit_fn(
+                            self._on_variables_changed
+                        )
+
             with ui.CollapsableFrame("Status", collapsed=False):
                 with ui.VStack(spacing=5, height=0):
                     with ui.HStack(spacing=5, height=0):
@@ -295,6 +316,12 @@ class UIBuilder:
     def load_settings(self):
         self._plc_manager.read_options_from_stage(self._active_plc)
         asyncio.ensure_future(self.build_plc_ui())
+
+    def _on_variables_changed(self, value):
+        variables = value.get_value_as_string().split("\n")        
+        for variable in variables:
+            self.beckhoff_bridge_runtime._ads_connector.add_read(variable)
+        # self.beckhoff_bridge_runtime = variables
 
 
 def updateComboBox(comboBox, items):
