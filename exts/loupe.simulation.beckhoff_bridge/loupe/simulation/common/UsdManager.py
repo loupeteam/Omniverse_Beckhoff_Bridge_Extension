@@ -89,23 +89,28 @@ class RuntimeUsd:
         for changed in notice.GetChangedInfoOnlyPaths():
             if str(changed).startswith(self._root_prim_path):
                 if (
-                    str(changed).endswith(ATTR_WRITE_VALUE)
-                    or str(changed).endswith(ATTR_WRITE_ONCE)
-                    or str(changed).endswith(ATTR_WRITE_PAUSE)
+                    changed.name == ATTR_WRITE_VALUE
+                    or changed.name == ATTR_WRITE_ONCE
+                    or changed.name == ATTR_WRITE_PAUSE
                 ):
                     # Get the value of the write attribute
                     changed = str(changed).split(".")[0]
                     prim = self._stage.GetPrimAtPath(str(changed))
+
+                    write_symbol = prim.GetAttribute(ATTR_WRITE_SYMBOL)
+                    if not write_symbol.IsValid():
+                        continue
+
                     write_once_attr = prim.GetAttribute(ATTR_WRITE_ONCE)
                     write_pause_attr = prim.GetAttribute(ATTR_WRITE_PAUSE)
 
                     if write_once_attr.Get() or not write_pause_attr.Get():
                         # Set the write attribute to False
                         write_once_attr.Set(False)
-                        write_symbol = prim.GetAttribute(ATTR_WRITE_SYMBOL)
+
                         # Get the value attribute
                         write_value_attr = prim.GetAttribute(ATTR_WRITE_VALUE)
-                        self._bridge_manager.write_data(
+                        self._bridge_manager.write_variable(
                             write_symbol.Get(), write_value_attr.Get()
                         )
 
@@ -124,17 +129,7 @@ class RuntimeUsd:
             path = self.root_prim.GetPath()
             full_key = path.pathString + "/" + "/".join(key.split("."))
 
-            # Get or create a prim for the variable
-            prim = self._stage.GetPrimAtPath(full_key)
-
-            if not prim:
-                prim = self._stage.DefinePrim(full_key)
-
-            set_attr(prim, "value", value)
-            get_or_create(prim, ATTR_WRITE_VALUE, Sdf.ValueTypeNames.Double).Set(value)
-            get_or_create(prim, ATTR_WRITE_ONCE, Sdf.ValueTypeNames.Bool).Set(False)
-            get_or_create(prim, ATTR_WRITE_PAUSE, Sdf.ValueTypeNames.Bool).Set(False)
-            get_or_create(prim, ATTR_WRITE_SYMBOL, Sdf.ValueTypeNames.String).Set(key)
+            set_prim_value(self._stage, full_key, key, value)
 
     def _on_stage_event(self, event):
         if event.type == int(StageEventType.OPENED):
@@ -147,9 +142,28 @@ class RuntimeUsd:
             pass
 
 
+def set_prim_value(stage, full_key, key, value):
+    # Get or create a prim for the variable
+    prim = stage.GetPrimAtPath(full_key)
+
+    if not prim:
+        prim = stage.DefinePrim(full_key)
+
+    (attr, create) = set_attr(prim, "value", value)
+    if create:
+        # Set the write attributes
+        get_or_create(prim, ATTR_WRITE_VALUE, attr.GetTypeName()).Set(value)
+        get_or_create(prim, ATTR_WRITE_ONCE, Sdf.ValueTypeNames.Bool).Set(False)
+        get_or_create(prim, ATTR_WRITE_PAUSE, Sdf.ValueTypeNames.Bool).Set(False)
+        # Write the symbol last, so that we can detect that it has just been added
+        get_or_create(prim, ATTR_WRITE_SYMBOL, Sdf.ValueTypeNames.String).Set(key)
+
+
 def set_attr(prim, attr_name, value):
     attr = prim.GetAttribute(attr_name)
+    created = False
     if not attr:
+        created = True
         if type(value) is str:
             attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.String)
         elif type(value) is bool:
@@ -158,6 +172,7 @@ def set_attr(prim, attr_name, value):
             attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Double)
 
     attr.Set(value)
+    return (attr, created)
 
 
 def get_or_create(prim, attr_name, attr_type):
