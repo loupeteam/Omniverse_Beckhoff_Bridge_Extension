@@ -5,6 +5,7 @@ from pxr import Sdf, Tf
 from pxr import Usd
 from .BridgeManager import BridgeManager
 from threading import RLock
+from contextlib import contextmanager
 
 ATTR_WRITE_VALUE = "write:value"
 ATTR_WRITE_PAUSE = "write:pause"
@@ -20,7 +21,7 @@ class RuntimeUsd:
         self._root_prim_path = prim_path
         self._bridge_manager = manager
         self._usd_context = omni.usd.get_context()
-
+        self.edit_layer = 0
         self._stage = self._usd_context.get_stage()
 
         self._lock = RLock()
@@ -128,8 +129,8 @@ class RuntimeUsd:
         for key, value in flat.items():
             path = self.root_prim.GetPath()
             full_key = path.pathString + "/" + "/".join(key.split("."))
-
-            set_prim_value(self._stage, full_key, key, value)
+            with layer_context(self._stage, self.edit_layer):
+                set_prim_value(self._stage, full_key, key, value)
 
     def _on_stage_event(self, event):
         if event.type == int(StageEventType.OPENED):
@@ -140,6 +141,17 @@ class RuntimeUsd:
 
         if event.type == int(StageEventType.HIERARCHY_CHANGED):
             pass
+
+
+@contextmanager
+def layer_context(stage, layer_id=0):
+    layer = stage.GetLayerStack()[layer_id]
+    if not layer:
+        layer = stage.GetLayerStack()[0]
+
+    edit_target = Usd.EditTarget(layer)
+    with Usd.EditContext(stage, edit_target):
+        yield
 
 
 def set_prim_value(stage, full_key, key, value):
