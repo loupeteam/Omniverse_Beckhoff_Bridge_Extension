@@ -114,7 +114,7 @@ class System:
         return list(self._components.keys())
 
     def add_plc(self, name, options):
-        input_options = default_properties
+        input_options = default_properties.copy()
         input_options.update(options)
         self.create_plc(name, input_options)
         if name not in self._components:
