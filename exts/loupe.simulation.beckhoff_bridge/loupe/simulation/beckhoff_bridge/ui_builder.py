@@ -225,48 +225,41 @@ class UIBuilder:
                         self._plc_ams_net_id_field.model.add_value_changed_fn(
                             self._on_plc_ams_net_id_changed
                         )
+                    with ui.CollapsableFrame("Cyclic Read Variables", collapsed=True):
+                        with ui.VStack(spacing=5, height=200):
+                            ui.Label("1 Variable per line", width=LABEL_WIDTH, height=0)
+                            self._variables_field = ui.StringField(
+                                ui.SimpleStringModel(
+                                    "\n".join(
+                                        self.beckhoff_bridge_runtime._ads_connector._read_names
+                                    )
+                                ),
+
+                                multiline=True,
+                            )
+                            self._variables_field.model.add_end_edit_fn(
+                                self._on_variables_changed
+                        )
 
                     with ui.HStack(spacing=5, height=0):
                         ui.Label("Settings", width=LABEL_WIDTH)
                         ui.Button(
-                            "Load", clicked_fn=self.load_settings, width=BUTTON_WIDTH
+                            "Update From USD", clicked_fn=self.load_settings, width=BUTTON_WIDTH
                         )
                         ui.Button(
-                            "Save", clicked_fn=self.save_settings, width=BUTTON_WIDTH
+                            "Write To USD", clicked_fn=self.save_settings, width=BUTTON_WIDTH
                         )
-
-            with ui.CollapsableFrame("Cyclic Read Variables", collapsed=False):
-                with ui.VStack(spacing=5, height=0):
-                    with ui.HStack(spacing=5, height=300):
-                        ui.Label("Variables", width=LABEL_WIDTH)
-                        self._variables_field = ui.StringField(
-                            ui.SimpleStringModel(
-                                "\n".join(
-                                    self.beckhoff_bridge_runtime._ads_connector._read_names
-                                )
-                            ),
-
-                            multiline=True,
-                        )
-                        self._variables_field.model.add_end_edit_fn(
-                            self._on_variables_changed
-                        )
-
-            with ui.CollapsableFrame("Status", collapsed=False):
-                with ui.VStack(spacing=5, height=0):
+                        
+            with ui.CollapsableFrame("Monitor", collapsed=False):
+                with ui.VStack(spacing=5, height=500):
                     with ui.HStack(spacing=5, height=0):
                         ui.Label("Status", width=LABEL_WIDTH)
                         self._status_field = ui.StringField(
                             ui.SimpleStringModel("n/a"), read_only=True
                         )
-
-            with ui.CollapsableFrame("Monitor", collapsed=False):
-                with ui.VStack(spacing=5, height=0):
-                    with ui.HStack(spacing=5, height=500):
-                        ui.Label("Variables", width=LABEL_WIDTH)
-                        self._monitor_field = ui.StringField(
-                            ui.SimpleStringModel("{}"), multiline=True, read_only=True
-                        )
+                    self._monitor_field = ui.StringField(
+                        ui.SimpleStringModel("{}"), multiline=True, read_only=True
+                    )
 
     def add_plc(self):
         name = self._plc_name_field.model.as_string
@@ -318,10 +311,8 @@ class UIBuilder:
         asyncio.ensure_future(self.build_plc_ui())
 
     def _on_variables_changed(self, value):
-        variables = value.get_value_as_string().split("\n")        
-        for variable in variables:
-            self.beckhoff_bridge_runtime._ads_connector.add_read(variable)
-        # self.beckhoff_bridge_runtime = variables
+        variables = value.get_value_as_string().split("\n")
+        self.beckhoff_bridge_runtime.set_read_variables(variables)
 
 
 def updateComboBox(comboBox, items):
