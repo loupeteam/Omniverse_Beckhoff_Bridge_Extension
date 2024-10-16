@@ -5,7 +5,12 @@ from threading import RLock
 from .Communication import CommunicationDriver
 from ..common.RuntimeBase import Runtime_Base
 
-from .global_variables import (ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, ATTR_BECKHOFF_BRIDGE_ENABLE, ATTR_BECKHOFF_BRIDGE_READ_VARS, ATTR_BECKHOFF_BRIDGE_REFRESH) # noqa: E501
+from .global_variables import (
+    ATTR_BECKHOFF_BRIDGE_AMS_NET_ID,
+    ATTR_BECKHOFF_BRIDGE_ENABLE,
+    ATTR_BECKHOFF_BRIDGE_READ_VARS,
+    ATTR_BECKHOFF_BRIDGE_REFRESH,
+)  # noqa: E501
 
 from .BeckhoffBridge import (
     EVENT_TYPE_DATA_READ,
@@ -24,7 +29,9 @@ class Runtime(Runtime_Base):
     # region - Class lifecycle
     def __init__(self, name="PLC1", options={}):
 
-        self._ads_connector = CommunicationDriver(options.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1"))
+        self._ads_connector = CommunicationDriver(
+            options.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1")
+        )
 
         super().__init__(name)
 
@@ -74,14 +81,17 @@ class Runtime(Runtime_Base):
     @options.setter
     def options(self, value):
         self.ams_net_id = value.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, self.ams_net_id)
-        self.enable_communication = value.get(ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication)
+        self.enable_communication = value.get(
+            ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
+        )
         self.refresh_rate = value.get(ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
-        variables = value.get(ATTR_BECKHOFF_BRIDGE_READ_VARS, self._ads_connector._read_names)
+        variables = value.get(
+            ATTR_BECKHOFF_BRIDGE_READ_VARS, self._ads_connector._read_names
+        )
         if variables:
             variables = variables.split(",")
             for name in variables:
                 self._ads_connector.add_read(name.strip())
-
 
     def _set_enable_communication(self, value):
         self._enable_communication = value

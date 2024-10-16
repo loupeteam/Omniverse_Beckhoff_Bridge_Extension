@@ -11,15 +11,18 @@ from typing import Callable
 import carb.events
 import omni.kit.app
 from ..common.RuntimeBase import get_stream_name
-from ..common.BridgeManager import BridgeManager
+from ..common.BridgeManager import BridgeManager, Manager_Events as ManEvents
 
-EVENT_TYPE_DATA_INIT = "loupe.simulation.beckhoff_bridge.DATA_INIT"
-EVENT_TYPE_DATA_READ = "loupe.simulation.beckhoff_bridge.DATA_READ"
-EVENT_TYPE_DATA_READ_REQ = "loupe.simulation.beckhoff_bridge.DATA_READ_REQ"
-EVENT_TYPE_DATA_WRITE_REQ = "loupe.simulation.beckhoff_bridge.DATA_WRITE_REQ"
-EVENT_TYPE_CONNECTION = "loupe.simulation.beckhoff_bridge.CONNECTION"
-EVENT_TYPE_STATUS = "loupe.simulation.beckhoff_bridge.STATUS"
-EVENT_TYPE_ENABLE = "loupe.simulation.beckhoff_bridge.ENABLE"
+beckhoff_bridge_name = "beckhoff_bridge"
+Manager_Events = ManEvents(beckhoff_bridge_name)
+
+EVENT_TYPE_DATA_INIT = Manager_Events.EVENT_TYPE_DATA_INIT
+EVENT_TYPE_DATA_READ = Manager_Events.EVENT_TYPE_DATA_READ
+EVENT_TYPE_DATA_READ_REQ = Manager_Events.EVENT_TYPE_DATA_READ_REQ
+EVENT_TYPE_DATA_WRITE_REQ = Manager_Events.EVENT_TYPE_DATA_WRITE_REQ
+EVENT_TYPE_CONNECTION = Manager_Events.EVENT_TYPE_CONNECTION
+EVENT_TYPE_STATUS = Manager_Events.EVENT_TYPE_STATUS
+EVENT_TYPE_ENABLE = Manager_Events.EVENT_TYPE_ENABLE
 
 manager = None
 

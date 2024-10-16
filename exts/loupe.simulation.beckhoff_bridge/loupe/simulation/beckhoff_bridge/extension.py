@@ -23,9 +23,13 @@ from omni.usd import StageEventType
 import omni.physx as _physx
 
 from .global_variables import EXTENSION_TITLE
+
+# from .ui_builder import UIBuilder
+from ..common.System import System
+from .BeckhoffBridge import _set_system, Manager, Manager_Events
 from .ui_builder import UIBuilder
-from .System import System
-from .BeckhoffBridge import _set_system
+from .global_variables import default_beckoff_properties
+from .Runtime import Runtime
 
 """
 This file serves as a basic template for the standard boilerplate operations
@@ -52,8 +56,10 @@ class Extension(omni.ext.IExt):
     def on_startup(self, ext_id: str):
         """Initialize extension and UI elements"""
 
-        self._plc_manager = System()
-        _set_system(self._plc_manager)
+        self._component_manager = System(
+            "/PLC/", default_beckoff_properties, Runtime, Manager
+        )
+        _set_system(self._component_manager)
 
         # Events
         self._usd_context = omni.usd.get_context()
@@ -80,7 +86,7 @@ class Extension(omni.ext.IExt):
         add_menu_items(self._menu_items, MENU_HEADER)
 
         # Filled in with User Functions
-        self.ui_builder = UIBuilder()
+        self.ui_builder = UIBuilder(self._component_manager, Manager_Events)
 
         # Events
         self._usd_context = omni.usd.get_context()
@@ -89,10 +95,10 @@ class Extension(omni.ext.IExt):
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
-        self._plc_manager.find_and_create_plcs()
+        self._component_manager.find_and_create_components()
 
-    def find_plcs(self):
-        self._plc_manager.find_plcs()
+    def find_components(self):
+        self._component_manager.find_components()
 
     def on_shutdown(self):
         self._models = {}
@@ -100,7 +106,7 @@ class Extension(omni.ext.IExt):
         if self._window:
             self._window = None
         self.ui_builder.cleanup()
-        self._plc_manager.cleanup()
+        self._component_manager.cleanup()
         _set_system(None)
 
         gc.collect()
@@ -152,12 +158,14 @@ class Extension(omni.ext.IExt):
         pass
 
     def _on_stage_event(self, event):
-        if event.type == int(StageEventType.OPENED) or event.type == int(StageEventType.CLOSED):
+        if event.type == int(StageEventType.OPENED) or event.type == int(
+            StageEventType.CLOSED
+        ):
             # stage was opened or closed, cleanup
             self._physx_subscription = None
-            self._plc_manager.cleanup()
-            self.find_plcs()
-            
+            self._component_manager.cleanup()
+            self.find_components()
+
     def _build_extension_ui(self):
         # Call user function for building UI
         self.ui_builder.build_ui()
