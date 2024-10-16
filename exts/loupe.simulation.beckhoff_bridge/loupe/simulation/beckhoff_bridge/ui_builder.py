@@ -24,7 +24,6 @@ import time
 from threading import Timer
 from .BeckhoffBridge import get_system
 import json
-import omni.isaac.ui as ui_utils
 
 logger = logging.getLogger(__name__)
 
