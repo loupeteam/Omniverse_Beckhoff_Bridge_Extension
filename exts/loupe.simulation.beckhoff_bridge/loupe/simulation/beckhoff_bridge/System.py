@@ -2,6 +2,7 @@ import omni
 from pxr import Sdf
 from .Runtime import Runtime
 from ..common.UsdManager import RuntimeUsd, get_options_from_prim, set_options_on_prim
+
 from .BeckhoffBridge import Manager
 from .global_variables import (
     ATTR_BECKHOFF_BRIDGE_AMS_NET_ID,
@@ -11,9 +12,9 @@ from .global_variables import (
 )  # noqa: E501
 
 """
-    These are the default properties for the Beckhoff Bridge when creating a new PLC
+    These are the default properties for the Beckhoff Bridge when creating a new component
 """
-default_properties = {
+default_beckoff_properties = {
     ATTR_BECKHOFF_BRIDGE_ENABLE: False,
     ATTR_BECKHOFF_BRIDGE_REFRESH: 20,
     ATTR_BECKHOFF_BRIDGE_AMS_NET_ID: "127.0.0.1.1.1",
@@ -23,7 +24,7 @@ default_properties = {
 
 class Components:
     """
-    This is a holder for the Runtime and USD components of a single PLC
+    This is a holder for the Runtime and USD components of a single component
     """
 
     def __init__(self, runtime, usd):
@@ -40,15 +41,20 @@ class Components:
 
 class System:
     """
-    System class for managing multiple PLC objects
+    System class for managing multiple component objects
     """
 
-    def __init__(self):
-        self.init()
+    def __init__(self, system_root: str, DefaultAttributes: dict, runtime_class, manager_class):        
+        self.init(system_root=system_root), DefaultAttributes
 
-    def init(self):
-        self._system_root = "/PLC/"
+    def init(self, system_root: str, DefaultAttributes: dict, runtime_class, manager_class):
+        """
+        """
+        self.default_properties = DefaultAttributes
+        self._system_root = system_root
         self._components = dict()
+        self._runtime_class = runtime_class
+        self._manager_class = manager_class
 
     system_root = property(lambda self: self._system_root)
 
@@ -56,13 +62,13 @@ class System:
         """
         Remove all the runtime and USD objects from the system
         """
-        for plc in self._components.values():
-            plc.runtime.cleanup()
-            plc.usd.cleanup()
+        for component in self._components.values():
+            component.runtime.cleanup()
+            component.usd.cleanup()
 
         self._components.clear()
 
-    def find_plcs(self) -> dict[str, dict[str, any]]:
+    def find_components(self) -> dict[str, dict[str, any]]:
         """
         Find all the prims in the stage that have the Bridge parameters
         Return a dictionary of the prim names and their options
@@ -70,107 +76,109 @@ class System:
         stage = omni.usd.get_context().get_stage()
         if stage is None:
             return
-        plcs_prims = []
+        components_prims = []
         for prim in stage.Traverse():
-            if prim.GetAttribute(ATTR_BECKHOFF_BRIDGE_ENABLE):
-                plcs_prims.append(prim)
+            for option in self.default_properties:
+                if not prim.HasAttribute(option):
+                    continue
+                components_prims.append(prim)
 
         # For all the prims found, get the prim name and add it to the list
         names = dict()
-        for plc in plcs_prims:
-            name = plc.GetPath().pathString.split("/")[-1]
-            names[name] = get_options_from_prim(plc, default_properties)
+        for component in components_prims:
+            name = component.GetPath().pathString.split("/")[-1]
+            names[name] = get_options_from_prim(component, self.default_properties)
         return names
 
-    def find_and_create_plcs(self) -> list[str]:
+    def find_and_create_components(self) -> list[str]:
         """
-        Find the PLCs defined in the stage and create runtime objects for them
+        Find the components defined in the stage and create runtime objects for them
         """
-        # Find all the PLCs in the stage
-        plcs = self.find_plcs()
-        if plcs is None:
+        # Find all the components in the stage
+        components = self.find_components()
+        if components is None:
             return
 
-        # Add new plcs to the stage
-        for name, options in plcs.items():
+        # Add new components to the stage
+        for name, options in components.items():
             if name not in self._components:
-                self.add_plc(name, options)
+                self.add_component(name, options)
 
-        # Remove plcs that are not in the stage
+        # Remove components that are not in the stage
         for name in list(self._components.keys()):
-            if name not in plcs:
+            if name not in components:
                 self._components[name].runtime.cleanup()
                 self._components[name].usd.cleanup()
                 del self._components[name]
 
-        # Return the names of the PLCs
-        return self.get_plc_names()
+        # Return the names of the components
+        return self.get_component_names()
 
-    def create_plc_prim(self, name: str, options: dict) -> str:
+    def create_component_prim(self, name: str, options: dict) -> str:
         """
-        Create a new PLC in the stage with the given name and options
+        Create a new component in the stage with the given name and options
         """
         prim_name = self.system_root + name
-        plc_prim = omni.usd.get_context().get_stage().DefinePrim(prim_name)
-        set_options_on_prim(plc_prim, options)
+        component_prim = omni.usd.get_context().get_stage().DefinePrim(prim_name)
+        set_options_on_prim(component_prim, options)
         return prim_name
 
-    def get_plc(self, name: str | int) -> Runtime | None:
+    def get_component(self, name: str | int) -> Runtime | None:
         """
-        Get the runtime object for the given PLC name
+        Get the runtime object for the given component name
         """
         if name not in self._components:
             return None
         return self._components[name].runtime
 
-    def write_options_to_stage(self, plc_name: str | int):
+    def write_options_to_stage(self, component_name: str | int):
         """
-        Write the options for the given PLC from the runtime object to the stage
+        Write the options for the given component from the runtime object to the stage
         """
-        plc = self.get_plc(plc_name)
-        if plc is None:
+        component = self.get_component(component_name)
+        if component is None:
             return
 
-        plc_prim = omni.usd.get_context().get_stage().GetPrimAtPath(self.system_root + plc_name)
-        if plc_prim is None:
+        component_prim = omni.usd.get_context().get_stage().GetPrimAtPath(self.system_root + component_name)
+        if component_prim is None:
             return
 
-        set_options_on_prim(plc_prim, plc.options)
+        set_options_on_prim(component_prim, component.options)
 
-    def read_options_from_stage(self, plc_name: str | int):
+    def read_options_from_stage(self, component_name: str | int):
         """
-        Read the options for the given PLC from the stage to the runtime object
+        Read the options for the given component from the stage to the runtime object
         """
-        plc = self.get_plc(plc_name)
-        if plc is None:
+        component = self.get_component(component_name)
+        if component is None:
             return
 
-        plc_prim = omni.usd.get_context().get_stage().GetPrimAtPath(self.system_root + plc_name)
-        if plc_prim is None:
+        component_prim = omni.usd.get_context().get_stage().GetPrimAtPath(self.system_root + component_name)
+        if component_prim is None:
             return
 
-        plc.options = get_options_from_prim(plc_prim, default_properties)
+        component.options = get_options_from_prim(component_prim, default_properties)
 
-    # Return the names of the PLCs as a list
-    def get_plc_names(self) -> list[str]:
+    # Return the names of the components as a list
+    def get_component_names(self) -> list[str]:
         """
-        Get the names of all the PLCs in the system
+        Get the names of all the components in the system
         """        
-        plc = self.find_plcs()
-        if plc is None:
+        component = self.find_components()
+        if component is None:
             return []
         return list(self._components.keys())
 
-    def add_plc(self, name, options):
+    def add_component(self, name, options):
         """
-        Add a new PLC to the system with the given name and options
+        Add a new component to the system with the given name and options
         Create the PRIM in the stage
-        Create the runtime and USD objects for the PLC
+        Create the runtime and USD objects for the component
         """
-        input_options = default_properties.copy()
+        input_options = self.default_properties.copy()
         input_options.update(options)
-        prim_name = self.create_plc_prim(name, input_options)
+        prim_name = self.create_component_prim(name, input_options)
         if name not in self._components:
             self._components[name] = Components(
-                Runtime(name, input_options), RuntimeUsd(prim_name, Manager(name))
+                self._runtime_class(name, input_options), RuntimeUsd(prim_name, self._manager_class(name))
             )
