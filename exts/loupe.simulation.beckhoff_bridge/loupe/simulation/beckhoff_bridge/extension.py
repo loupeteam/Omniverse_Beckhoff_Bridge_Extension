@@ -16,7 +16,6 @@ import omni.ui as ui
 import omni.usd
 import omni.timeline
 import omni.kit.commands
-from carb.settings import get_settings
 
 from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescription
 from omni.usd import StageEventType
@@ -24,10 +23,10 @@ import omni.physx as _physx
 
 from .global_variables import EXTENSION_TITLE
 
-# from .ui_builder import UIBuilder
 from ..common.System import System
 from .BeckhoffBridge import _set_system, Manager, Manager_Events
 from .ui_builder import UIBuilder
+
 from .global_variables import default_beckoff_properties
 from .Runtime import Runtime
 
