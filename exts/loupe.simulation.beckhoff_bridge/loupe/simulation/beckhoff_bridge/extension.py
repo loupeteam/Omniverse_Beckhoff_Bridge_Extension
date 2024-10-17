@@ -94,7 +94,7 @@ class Extension(omni.ext.IExt):
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
-        self._component_manager.find_and_create_components()
+        self.find_components()
 
     def find_components(self):
         self._component_manager.find_components()
