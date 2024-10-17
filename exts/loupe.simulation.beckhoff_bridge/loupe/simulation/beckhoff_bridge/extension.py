@@ -16,12 +16,19 @@ import omni.ui as ui
 import omni.usd
 import omni.timeline
 import omni.kit.commands
+
 from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescription
 from omni.usd import StageEventType
 import omni.physx as _physx
 
-from .global_variables import EXTENSION_TITLE, EXTENSION_DESCRIPTION
+from .global_variables import EXTENSION_TITLE
+
+from ..common.System import System
+from .BeckhoffBridge import _set_system, Manager, Manager_Events
 from .ui_builder import UIBuilder
+
+from .global_variables import default_beckoff_properties
+from .Runtime import Runtime
 
 """
 This file serves as a basic template for the standard boilerplate operations
@@ -40,17 +47,29 @@ This class sets up standard useful callback functions in UIBuilder:
     build_ui: User function that creates the UI they want.
 """
 
+MENU_HEADER = "Loupe"
+MENU_ITEM_NAME = "Beckhoff Bridge"
 
-class TestExtension(omni.ext.IExt):
+
+class Extension(omni.ext.IExt):
     def on_startup(self, ext_id: str):
         """Initialize extension and UI elements"""
+
+        self._component_manager = System(
+            "/PLC/", default_beckoff_properties, Runtime, Manager
+        )
+        _set_system(self._component_manager)
 
         # Events
         self._usd_context = omni.usd.get_context()
 
         # Build Window
         self._window = ui.Window(
-            title=EXTENSION_TITLE, width=600, height=500, visible=False, dockPreference=ui.DockPreference.LEFT_BOTTOM
+            title=EXTENSION_TITLE,
+            width=600,
+            height=500,
+            visible=False,
+            dockPreference=ui.DockPreference.LEFT_BOTTOM,
         )
         self._window.set_visibility_changed_fn(self._on_window)
 
@@ -58,12 +77,15 @@ class TestExtension(omni.ext.IExt):
         self._models = {}
         self._ext_id = ext_id
         self._menu_items = [
-            MenuItemDescription(name="Open Bridge Settings", onclick_fn=lambda a=weakref.proxy(self): a._menu_callback())
+            MenuItemDescription(
+                name=MENU_ITEM_NAME,
+                onclick_fn=lambda a=weakref.proxy(self): a._menu_callback(),
+            )
         ]
-        add_menu_items(self._menu_items, EXTENSION_TITLE)
+        add_menu_items(self._menu_items, MENU_HEADER)
 
         # Filled in with User Functions
-        self.ui_builder = UIBuilder()
+        self.ui_builder = UIBuilder(self._component_manager, Manager_Events)
 
         # Events
         self._usd_context = omni.usd.get_context()
@@ -72,12 +94,20 @@ class TestExtension(omni.ext.IExt):
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
 
+        self.find_components()
+
+    def find_components(self):
+        self._component_manager.find_components()
+
     def on_shutdown(self):
         self._models = {}
-        remove_menu_items(self._menu_items, EXTENSION_TITLE)
+        remove_menu_items(self._menu_items, MENU_HEADER, True)
         if self._window:
             self._window = None
         self.ui_builder.cleanup()
+        self._component_manager.cleanup()
+        _set_system(None)
+
         gc.collect()
 
     def _on_window(self, visible):
@@ -85,9 +115,13 @@ class TestExtension(omni.ext.IExt):
             # Subscribe to Stage and Timeline Events
             self._usd_context = omni.usd.get_context()
             events = self._usd_context.get_stage_event_stream()
-            self._stage_event_sub = events.create_subscription_to_pop(self._on_stage_event)
+            self._stage_event_sub = events.create_subscription_to_pop(
+                self._on_stage_event
+            )
             stream = self._timeline.get_timeline_event_stream()
-            self._timeline_event_sub = stream.create_subscription_to_pop(self._on_timeline_event)
+            self._timeline_event_sub = stream.create_subscription_to_pop(
+                self._on_timeline_event
+            )
 
             self._build_ui()
         else:
@@ -115,23 +149,21 @@ class TestExtension(omni.ext.IExt):
 
         self._task = asyncio.ensure_future(dock_window())
 
-    #################################################################
-    # Functions below this point call user functions
-    #################################################################
-
     def _menu_callback(self):
         self._window.visible = not self._window.visible
         self.ui_builder.on_menu_callback()
 
     def _on_timeline_event(self, event):
-        self.ui_builder.on_timeline_event(event)
+        pass
 
     def _on_stage_event(self, event):
-        if event.type == int(StageEventType.OPENED) or event.type == int(StageEventType.CLOSED):
+        if event.type == int(StageEventType.OPENED) or event.type == int(
+            StageEventType.CLOSED
+        ):
             # stage was opened or closed, cleanup
             self._physx_subscription = None
-
-        self.ui_builder.on_stage_event(event)
+            self._component_manager.cleanup()
+            self.find_components()
 
     def _build_extension_ui(self):
         # Call user function for building UI

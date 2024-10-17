@@ -1,22 +1,43 @@
-'''
+"""
   File: **BeckhoffBridge.py**
   Copyright (c) 2024 Loupe
   https://loupe.team
   
   This file is part of Omniverse_Beckhoff_Bridge_Extension, licensed under the MIT License.
   
-'''
+"""
 
 from typing import Callable
 import carb.events
 import omni.kit.app
+from ..common.RuntimeBase import get_stream_name
+from ..common.BridgeManager import BridgeManager, Manager_Events as ManEvents
 
-EVENT_TYPE_DATA_INIT = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_INIT")
-EVENT_TYPE_DATA_READ = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_READ")
-EVENT_TYPE_DATA_READ_REQ = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_READ_REQ")
-EVENT_TYPE_DATA_WRITE_REQ = carb.events.type_from_string("loupe.simulation.beckhoff_bridge.DATA_WRITE_REQ")
+beckhoff_bridge_name = "beckhoff_bridge"
+Manager_Events = ManEvents(beckhoff_bridge_name)
 
-class Manager:
+EVENT_TYPE_DATA_INIT = Manager_Events.EVENT_TYPE_DATA_INIT
+EVENT_TYPE_DATA_READ = Manager_Events.EVENT_TYPE_DATA_READ
+EVENT_TYPE_DATA_READ_REQ = Manager_Events.EVENT_TYPE_DATA_READ_REQ
+EVENT_TYPE_DATA_WRITE_REQ = Manager_Events.EVENT_TYPE_DATA_WRITE_REQ
+EVENT_TYPE_CONNECTION = Manager_Events.EVENT_TYPE_CONNECTION
+EVENT_TYPE_STATUS = Manager_Events.EVENT_TYPE_STATUS
+EVENT_TYPE_ENABLE = Manager_Events.EVENT_TYPE_ENABLE
+
+manager = None
+
+
+def get_system():
+    global manager
+    return manager
+
+
+def _set_system(m):
+    global manager
+    manager = m
+
+
+class Manager(BridgeManager):
     """
     BeckhoffBridge class provides an interface for interacting with the Beckhoff Bridge Extension.
     It can be used in Python scripts to read and write variables.
@@ -24,18 +45,19 @@ class Manager:
     Methods:
 
         register_init_callback( callback : Callable[[carb.events.IEvent], None] ): Registers a callback function for the DATA_INIT event.
-    
+
         register_data_callback( callback : Callable[[carb.events.IEvent], None] ): Registers a callback function for the DATA_READ event.
-        
+
         add_cyclic_read_variables( variable_name_array : list[str]): Adds variables to the cyclic read list.
-        
+
         write_variable( name : str, value : any ): Writes a variable value to the Beckhoff Bridge.
     """
 
-    def __init__(self):
+    def __init__(self, Name="PLC1"):
         """
         Initializes the BeckhoffBridge object.
         """
+        self._plc_name = Name
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
         self._callbacks = []
 
@@ -46,11 +68,11 @@ class Manager:
         for callback in self._callbacks:
             self._event_stream.remove_subscription(callback)
 
-    def register_init_callback( self, callback : Callable[[carb.events.IEvent], None] ):
+    def register_init_callback(self, callback: Callable[[carb.events.IEvent], None]):
         """
         Registers a callback function for the DATA_INIT event.
-        The callback is triggered when the Beckhoff Bridge is initialized. 
-        The user should use this event to add cyclic read variables. 
+        The callback is triggered when the Beckhoff Bridge is initialized.
+        The user should use this event to add cyclic read variables.
         This event may get called multiple times in normal operation due to the nature of how extensions are loaded.
 
         Args:
@@ -59,10 +81,14 @@ class Manager:
         Returns:
             None
         """
-        self._callbacks.append(self._event_stream.create_subscription_to_push_by_type(EVENT_TYPE_DATA_INIT, callback))
+        self._callbacks.append(
+            self._event_stream.create_subscription_to_push_by_type(
+                get_stream_name(EVENT_TYPE_DATA_INIT, self._plc_name), callback
+            )
+        )
         callback(None)
 
-    def register_data_callback( self, callback : Callable[[carb.events.IEvent], None] ):
+    def register_data_callback(self, callback: Callable[[carb.events.IEvent], None]):
         """
         Registers a callback function for the DATA_READ event.
         The callback is triggered when the Beckhoff Bridge receives new data. The payload contains the updated variables.
@@ -77,9 +103,13 @@ class Manager:
         Returns:
             None
         """
-        self._callbacks.append(self._event_stream.create_subscription_to_push_by_type(EVENT_TYPE_DATA_READ, callback))
+        self._callbacks.append(
+            self._event_stream.create_subscription_to_push_by_type(
+                get_stream_name(EVENT_TYPE_DATA_READ, self._plc_name), callback
+            )
+        )
 
-    def add_cyclic_read_variables(self, variable_name_array : list[str]):
+    def add_cyclic_read_variables(self, variable_name_array: list[str]):
         """
         Adds variables to the cyclic read list.
         Variables in the cyclic read list are read from the Beckhoff Bridge at a fixed interval.
@@ -90,9 +120,12 @@ class Manager:
         Returns:
             None
         """
-        self._event_stream.push(event_type=EVENT_TYPE_DATA_READ_REQ, payload={'variables': variable_name_array})
+        self._event_stream.push(
+            event_type=get_stream_name(EVENT_TYPE_DATA_READ_REQ, self._plc_name),
+            payload={"variables": variable_name_array},
+        )
 
-    def write_variable(self, name : str, value : any ):
+    def write_variable(self, name: str, value: any):
         """
         Writes a variable value to the Beckhoff Bridge.
 
@@ -103,5 +136,8 @@ class Manager:
         Returns:
             None
         """
-        payload = {"variables": [{'name': name, 'value': value}]}
-        self._event_stream.push(event_type=EVENT_TYPE_DATA_WRITE_REQ, payload=payload)
+        payload = {"variables": [{"name": name, "value": value}]}
+        self._event_stream.push(
+            event_type=get_stream_name(EVENT_TYPE_DATA_WRITE_REQ, self._plc_name),
+            payload=payload,
+        )
