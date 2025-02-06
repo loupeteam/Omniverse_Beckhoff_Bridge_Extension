@@ -51,6 +51,8 @@ class Runtime(Runtime_Base):
             for name in variables:
                 self._ads_connector.add_read(name.strip())
 
+        self.start()
+
     # endregion
     # region - Properties
     ams_net_id = property(

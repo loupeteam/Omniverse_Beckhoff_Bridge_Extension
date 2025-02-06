@@ -141,3 +141,23 @@ class Manager(BridgeManager):
             event_type=get_stream_name(EVENT_TYPE_DATA_WRITE_REQ, self._plc_name),
             payload=payload,
         )
+
+    def write_variables(self, data: dict):
+        """
+        Writes a variable value to the Beckhoff Bridge.
+
+        Args:
+            name (str): The name of the variable. "MAIN.myStruct.myvar1"
+            value (basic type): The value to be written.  1, 2.5, "Hello", ...
+
+        Returns:
+            None
+        """
+        writes = []
+        for name, value in data.items():
+            writes.append({"name": name, "value": value})
+        payload = {"variables": writes}
+        self._event_stream.push(
+            event_type=get_stream_name(EVENT_TYPE_DATA_WRITE_REQ, self._plc_name),
+            payload=payload,
+        )
