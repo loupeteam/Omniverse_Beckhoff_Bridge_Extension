@@ -103,7 +103,7 @@ class Runtime(Runtime_Base):
     # endregion
 
     # region - Event Stream
-    def _subscibe_event_stream(self, stream):
+    def _subscribe_event_stream(self, stream):
 
         self.read_req = stream.create_subscription_to_push_by_type(
             self._get_stream_name(EVENT_TYPE_DATA_READ_REQ), self._on_read_req_event
