@@ -25,12 +25,23 @@ from .BeckhoffBridge import (
 logger = logging.getLogger(__name__)
 
 
+def _option(options: dict, key: str, default):
+    """
+    Read an option, falling back to the default when the key is missing or None.
+    Do not use `options.get(key) or default`: that turns a legitimate False or 0
+    into the default, so the option can never be switched off.
+    """
+    value = options.get(key)
+    return default if value is None else value
+
+
 class Runtime(Runtime_Base):
     # region - Class lifecycle
-    def __init__(self, name="PLC1", options={}):
+    def __init__(self, name="PLC1", options=None):
+        options = options or {}
 
         self._ads_connector = CommunicationDriver(
-            options.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1")
+            _option(options, ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1")
         )
 
         super().__init__(name)
@@ -41,9 +52,9 @@ class Runtime(Runtime_Base):
         self._was_connected = False
         self._is_connected = False
 
-        self.refresh_rate = options.get(ATTR_BECKHOFF_BRIDGE_REFRESH) or 20
-        self._log_jitter = options.get("LOG_JITTER") or True
-        self._enable_communication = options.get(ATTR_BECKHOFF_BRIDGE_ENABLE) or False
+        self.refresh_rate = _option(options, ATTR_BECKHOFF_BRIDGE_REFRESH, 20)
+        self._log_jitter = _option(options, "LOG_JITTER", True)
+        self._enable_communication = _option(options, ATTR_BECKHOFF_BRIDGE_ENABLE, False)
 
         variables = options.get(ATTR_BECKHOFF_BRIDGE_READ_VARS, "")
         if variables:
@@ -144,6 +155,9 @@ class Runtime(Runtime_Base):
         if self._enable_communication and not self._is_connected:
             self._push_event(EVENT_TYPE_CONNECTION, status="Connecting")
             try:
+                # Close anything left from a previous connection (e.g. after the
+                # AMS Net Id was changed) before opening a new one
+                self._ads_connector.disconnect()
                 self._ads_connector.connect()
             except Exception as e:  # noqa
                 self._is_connected = False
@@ -172,7 +186,8 @@ class Runtime(Runtime_Base):
                 self._push_event(EVENT_TYPE_DATA_READ, data=self._data)
         except Exception as e:
             self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
-            if e.err_code == 1808:
+            # Only pyads.ADSError carries err_code; 1808 is "symbol not found"
+            if getattr(e, "err_code", None) == 1808:
                 variables = self._ads_connector._read_names
                 self._push_event(
                     EVENT_TYPE_STATUS, status=f"Error Reading One Of: {variables}"

@@ -1,5 +1,5 @@
 """
-  File: **ads_driver.py**
+  File: **Communication.py**
   Copyright (c) 2024 Loupe
   https://loupe.team
   
@@ -203,10 +203,19 @@ class CommunicationDriver:
 
     def disconnect(self):
         """
-        Disconnects from the target device.
+        Disconnects from the target device, closing both the read and the write
+        connection. Safe to call when not connected.
 
         """
+        for connection in (self._connection, self._connection_write):
+            if connection is None:
+                continue
+            try:
+                connection.close()
+            except Exception:  # noqa
+                pass
         self._connection = None
+        self._connection_write = None
 
     def is_connected(self):
         """
