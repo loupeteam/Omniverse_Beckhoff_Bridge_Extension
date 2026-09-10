@@ -19,7 +19,6 @@ import omni.kit.commands
 
 from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescription
 from omni.usd import StageEventType
-import omni.physx as _physx
 
 from .global_variables import EXTENSION_TITLE
 
@@ -87,27 +86,36 @@ class Extension(omni.ext.IExt):
         # Filled in with User Functions
         self.ui_builder = UIBuilder(self._component_manager, Manager_Events)
 
-        # Events
-        self._usd_context = omni.usd.get_context()
-        # Kit 110 renamed acquire_physx_interface to get_physx_interface. Try both
-        # so this still runs on the older Kit versions the extension supports.
-        self._physxIFace = (_physx.acquire_physx_interface()
-                            if hasattr(_physx, 'acquire_physx_interface')
-                            else _physx.get_physx_interface())
-        self._physx_subscription = None
-        self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()
+        self._timeline_event_sub = None
 
-        self.find_components()
+        # Stage events are subscribed here, not when the window is opened, because
+        # the runtimes have to follow the stage whether or not there is a window
+        # (headless, or an interactive app where the user never opens the panel).
+        self._stage_event_sub = (
+            self._usd_context.get_stage_event_stream().create_subscription_to_pop(
+                self._on_stage_event
+            )
+        )
 
-    def find_components(self):
-        self._component_manager.find_components()
+        # Create runtimes for any component prims already in the stage.
+        self._refresh_components()
+
+    def _refresh_components(self):
+        """
+        Find the component prims in the stage and create (or remove) runtimes to match.
+        This is the only place a runtime is created outside of the UI, so it must run
+        at startup and on every stage open/close.
+        """
+        self._component_manager.find_and_create_components()
 
     def on_shutdown(self):
         self._models = {}
         remove_menu_items(self._menu_items, MENU_HEADER, True)
         if self._window:
             self._window = None
+        self._stage_event_sub = None
+        self._timeline_event_sub = None
         self.ui_builder.cleanup()
         self._component_manager.cleanup()
         _set_system(None)
@@ -116,12 +124,6 @@ class Extension(omni.ext.IExt):
 
     def _on_window(self, visible):
         if self._window.visible:
-            # Subscribe to Stage and Timeline Events
-            self._usd_context = omni.usd.get_context()
-            events = self._usd_context.get_stage_event_stream()
-            self._stage_event_sub = events.create_subscription_to_pop(
-                self._on_stage_event
-            )
             stream = self._timeline.get_timeline_event_stream()
             self._timeline_event_sub = stream.create_subscription_to_pop(
                 self._on_timeline_event
@@ -129,8 +131,6 @@ class Extension(omni.ext.IExt):
 
             self._build_ui()
         else:
-            self._usd_context = None
-            self._stage_event_sub = None
             self._timeline_event_sub = None
 
     def _build_ui(self):
@@ -164,10 +164,10 @@ class Extension(omni.ext.IExt):
         if event.type == int(StageEventType.OPENED) or event.type == int(
             StageEventType.CLOSED
         ):
-            # stage was opened or closed, cleanup
-            self._physx_subscription = None
+            # stage was opened or closed: drop the old runtimes and rebuild from
+            # whatever the (new) stage contains
             self._component_manager.cleanup()
-            self.find_components()
+            self._refresh_components()
 
     def _build_extension_ui(self):
         # Call user function for building UI

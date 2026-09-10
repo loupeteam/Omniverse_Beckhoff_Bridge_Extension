@@ -17,8 +17,10 @@ Detailed documentation can be found in the extension readme file [here](exts/lou
 This software contains source code provided by NVIDIA Corporation. This code is subject to the terms of the [NVIDIA Omniverse License Agreement](https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html). Files are licensed as follows:
 
 ### Files created entirely by Loupe ([MIT License](LICENSE)):
-* `ads_driver.py`
+* `Communication.py`
+* `Runtime.py`
 * `BeckhoffBridge.py`
+* everything under `loupe/simulation/common` (the [Omni-Utils](https://github.com/loupeteam/Omni-Utils) submodule)
 
 ### Files including Nvidia-generated code and modifications by Loupe (Nvidia Omniverse License Agreement AND MIT License; use must comply to whichever is most restrictive for any attribute):
 * `__init__.py`
