@@ -2,7 +2,7 @@ Changelog
 
 [0.2.0]
 - Support multiple PLCs. Each PLC is a prim under `/PLC/` carrying `beckhoff_bridge:*` attributes, so connection settings are saved in the stage instead of in persistent app settings.
-- Mirror the values read from the PLC into the stage as prims, with `write:*` attributes for writing back.
+- Mirror the values read from the PLC into the stage as prims in the session layer, with `write:*` attributes for writing back. Array elements are mirrored as `_<index>` child prims.
 - Create the runtimes at extension startup and on stage open/close, so the bridge works without opening the window (headless).
 - Cycle time reduced from (3 + write) ADS calls per scan to 1, and jitter reduced from 8-20 ms to about 1 ms.
 - Worker threads are daemons with a bounded join, so a runtime can no longer keep the app from exiting.

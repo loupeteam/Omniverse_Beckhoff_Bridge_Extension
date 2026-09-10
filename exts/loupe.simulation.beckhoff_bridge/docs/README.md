@@ -30,7 +30,7 @@ A **PLC** (also called a *component*) is a prim in the USD stage under `/PLC/`, 
 
 When the extension starts, and whenever a stage is opened or closed, every prim carrying these attributes becomes a running **runtime**: a worker thread that connects to the PLC, reads the cyclic variables at the refresh rate, and publishes the values on the Kit message bus. No window has to be opened for this to happen, so the bridge also works in headless apps.
 
-Values read from the PLC are mirrored into the stage as prims below the PLC prim, one per variable, following the variable's structure. `MAIN.custom_struct.var1` on `PLC1` becomes `/PLC/PLC1/MAIN/custom_struct/var1` with these attributes:
+Values read from the PLC are mirrored into the stage as prims below the PLC prim, one per variable, following the variable's structure. `MAIN.custom_struct.var1` on `PLC1` becomes `/PLC/PLC1/MAIN/custom_struct/var1`. An array element becomes a child prim of the array named `_<index>`, because a USD prim name cannot start with a digit: `MAIN.axes[0].position` becomes `/PLC/PLC1/MAIN/axes/_0/position`. Each mirror prim has these attributes:
 
 | Attribute | Meaning |
 |---|---|
@@ -40,9 +40,9 @@ Values read from the PLC are mirrored into the stage as prims below the PLC prim
 | `write:pause` | While `true`, changes to `write:value` are not sent (edit several fields, then release) |
 | `write:once` | Set to `true` to send `write:value` a single time, even when paused |
 
-Mirroring can be switched off per PLC by adding a bool attribute `bridge:MirrorToUsd = false` to the PLC prim. Writes through `write:value` still work when the mirror is off.
+The mirror prims live in the stage's **session layer**. They are visible to the property window, scripts and OmniGraph like any other prim, but they are never saved with the stage and do not count as unsaved changes. Edits you make to `write:value` in the property window are authored in your current edit target as usual.
 
-Array elements (`MAIN.arr[0]`) are read and delivered to Python subscribers, but are **not yet mirrored into the stage**, because a USD prim name cannot start with a digit. Such variables are skipped in the mirror after a warning.
+Mirroring can be switched off per PLC by adding a bool attribute `bridge:MirrorToUsd = false` to the PLC prim. Writes through `write:value` still work when the mirror is off.
 
 # Configuration
 
