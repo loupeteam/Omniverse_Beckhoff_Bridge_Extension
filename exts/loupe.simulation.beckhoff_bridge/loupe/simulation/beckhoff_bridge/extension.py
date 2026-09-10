@@ -89,7 +89,11 @@ class Extension(omni.ext.IExt):
 
         # Events
         self._usd_context = omni.usd.get_context()
-        self._physxIFace = _physx.acquire_physx_interface()
+        # Kit 110 renamed acquire_physx_interface to get_physx_interface. Try both
+        # so this still runs on the older Kit versions the extension supports.
+        self._physxIFace = (_physx.acquire_physx_interface()
+                            if hasattr(_physx, 'acquire_physx_interface')
+                            else _physx.get_physx_interface())
         self._physx_subscription = None
         self._stage_event_sub = None
         self._timeline = omni.timeline.get_timeline_interface()

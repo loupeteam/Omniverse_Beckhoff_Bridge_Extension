@@ -17,6 +17,17 @@ icon = "data/icon.png"
 
 [dependencies]
 "omni.kit.uiapp" = {}
+# All three are used in on_startup, so they have to be declared here. An app that
+# lists them in its own dependencies is not enough: that says what to load, not what
+# to load first -- only the consuming extension's manifest orders startup.
+#
+#   omni.timeline / omni.physx  acquire_*_interface() raises outright
+#   omni.usd                    get_context() returns None, and System.find_components
+#                               guards `stage is None` but not a None context, so it
+#                               dies with AttributeError: 'NoneType' has no 'get_stage'
+"omni.timeline" = {}
+"omni.physx" = {}
+"omni.usd" = {}
 
 [python.pipapi]
 requirements = ['pyads']
