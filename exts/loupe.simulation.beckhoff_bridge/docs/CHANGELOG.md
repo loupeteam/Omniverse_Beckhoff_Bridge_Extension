@@ -8,7 +8,8 @@ Changelog
 - Worker threads are daemons with a bounded join, so a runtime can no longer keep the app from exiting.
 - Declare the `omni.timeline`, `omni.usd` and `omni.kit.menu.utils` dependencies; drop the unused `omni.physx` dependency.
 - Fix read errors other than `pyads.ADSError` being masked by an `AttributeError` in the handler.
-- Fix `LOG_JITTER` and other options that could not be set to `False`/`0`.
+- Fix options that could not be set to `False`/`0`.
+- **Breaking:** `BeckhoffBridge.Manager` now addresses one PLC by the name of its prim under `/PLC/` (`Manager("PLC1")`); the persistent app settings of 0.1.x are no longer read. A warning is logged when a `Manager` is created for a PLC that is not loaded.
 - Close both ADS connections on disconnect; previously the write connection leaked on every reconnect.
 - Shared runtime, system and USD code moved to the `loupe/simulation/common` submodule (loupeteam/Omni-Utils).
 
