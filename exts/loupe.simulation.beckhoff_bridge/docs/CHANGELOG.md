@@ -1,6 +1,7 @@
 Changelog
 
 [0.2.0]
+See MIGRATION.md for upgrading from 0.1.x.
 - Support multiple PLCs. Each PLC is a prim under `/PLC/` carrying `beckhoff_bridge:*` attributes, so connection settings are saved in the stage instead of in persistent app settings.
 - Mirror the values read from the PLC into the stage as prims in the session layer, with `write:*` attributes for writing back. Array elements are mirrored as `_<index>` child prims.
 - Create the runtimes at extension startup and on stage open/close, so the bridge works without opening the window (headless).

@@ -2,6 +2,8 @@
 
 The Beckhoff Bridge is an [NVIDIA Omniverse](https://www.nvidia.com/en-us/omniverse/) extension for communicating with [Beckhoff PLCs](https://www.beckhoff.com/en-en/) using the [ADS protocol](https://infosys.beckhoff.com/english.php?content=../content/1033/cx8190_hw/5091854987.html&id=).
 
+Upgrading from 0.1.x? See [MIGRATION.md](MIGRATION.md).
+
 # Installation
 
 ### Install from registry
