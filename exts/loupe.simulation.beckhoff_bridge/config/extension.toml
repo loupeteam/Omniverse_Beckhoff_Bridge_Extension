@@ -3,7 +3,7 @@ reloadable = true
 order = 0
 
 [package]
-version = "0.2.0"
+version = "0.2.1"
 category = "simulation"
 title = "Beckhoff Bridge"
 description = "A bridge for connecting Omniverse to Beckhoff PLCs over ADS"
