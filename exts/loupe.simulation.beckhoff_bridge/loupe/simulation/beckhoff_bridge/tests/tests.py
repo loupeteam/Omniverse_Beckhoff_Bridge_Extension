@@ -3,7 +3,7 @@ Test a wide variety of inputs for parsing PLC representations of data into a dic
 """
 
 import omni.kit.test
-from loupe.simulation.beckhoff_bridge.ads_driver import AdsDriver
+from loupe.simulation.beckhoff_bridge.Communication import CommunicationDriver
 
 # pylint: disable=W0212
 
@@ -12,8 +12,8 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
 
     # Run before every test
     async def setUp(self):
-        AdsDriver('127.0.0.1.1')
-        self.driver = AdsDriver('127.0.0.1.1')
+        CommunicationDriver('127.0.0.1.1')
+        self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
         self.test_different_data_types = ["30", 30, -18935, 30.151535, True, False]
 
@@ -93,7 +93,7 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
 
     # Run before every test
     async def setUp(self):
-        self.driver = AdsDriver('127.0.0.1.1')
+        self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
         self.test_different_data_types = ["30", 30, -18935, 30.151535, True, False]
     
@@ -206,7 +206,7 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
 
     # Run before every test
     async def setUp(self):
-        self.driver = AdsDriver('127.0.0.1.1')
+        self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
         self.test_different_data_types = ["30", 30, -18935, 30.151535, True, False]
 
@@ -395,7 +395,7 @@ class TestParseNameComplex(omni.kit.test.AsyncTestCase):
     # Run before every test
     async def setUp(self):
         self.name_dict = {}
-        self.driver = AdsDriver('127.0.0.1.1')
+        self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
 
     def test_deep_mix_of_nesting(self):

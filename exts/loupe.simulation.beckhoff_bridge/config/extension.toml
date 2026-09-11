@@ -3,7 +3,7 @@ reloadable = true
 order = 0
 
 [package]
-version = "0.1.0"
+version = "0.2.0"
 category = "simulation"
 title = "Beckhoff Bridge"
 description = "A bridge for connecting Omniverse to Beckhoff PLCs over ADS"
@@ -17,6 +17,16 @@ icon = "data/icon.png"
 
 [dependencies]
 "omni.kit.uiapp" = {}
+# Everything used in on_startup has to be declared here. An app that lists them in
+# its own dependencies is not enough: that says what to load, not what to load first
+# -- only the consuming extension's manifest orders startup.
+#
+#   omni.timeline        get_timeline_interface() raises outright if not yet loaded
+#   omni.usd             get_context() returns None before omni.usd has started
+#   omni.kit.menu.utils  add_menu_items is imported at module level
+"omni.timeline" = {}
+"omni.usd" = {}
+"omni.kit.menu.utils" = {}
 
 [python.pipapi]
 requirements = ['pyads']
@@ -30,8 +40,5 @@ public = true
 # Extra dependencies only to be used during test run
 dependencies = [
     "omni.kit.ui_test", # UI testing extension
-    "omni.usd",
-    "omni.kit.menu.utils",
-    "omni.physx"
 ]
 timeout = 60
