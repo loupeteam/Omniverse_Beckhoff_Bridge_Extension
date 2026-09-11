@@ -9,6 +9,24 @@
 
 import pyads
 import re
+from pyads.errorcodes import ERROR_CODES
+
+# pyads.Connection.read_list_by_name does not raise when one symbol of a sum read
+# fails: it puts the ADS error text (e.g. "symbol not found") in that symbol's slot.
+# Delivered as data, that string would be mirrored, compared and written back as if
+# it were the PLC value. Recognise those strings and report them separately.
+_ADS_ERROR_TEXTS = frozenset(ERROR_CODES.values())
+
+
+class AdsReadError(Exception):
+    """
+    Raised by CommunicationDriver.read_data when every requested symbol failed.
+    """
+
+    def __init__(self, errors: dict):
+        self.errors = errors
+        super().__init__("ADS read failed for all {} symbol(s): {}".format(
+            len(errors), "; ".join("{}: {}".format(k, v) for k, v in errors.items())))
 
 
 class CommunicationDriver:
@@ -38,6 +56,8 @@ class CommunicationDriver:
         self._read_struct_def = dict()
         self._connection = None
         self._connection_write = None
+        # Per-symbol ADS errors from the last read_data() call, name -> error text.
+        self.last_read_errors = dict()
 
     def add_read(self, name: str, structure_def=None):
         """
@@ -72,20 +92,28 @@ class CommunicationDriver:
         Reads all variables from the cyclic read list.
 
         Returns:
-            dict: A dictionary containing the parsed data.
+            dict: A dictionary containing the parsed data. Symbols whose read failed
+            are left out; their error texts are in last_read_errors.
+
+        Raises:
+            AdsReadError: when every requested symbol failed (the PLC is gone or
+            has no program), so the caller can report a read error.
 
         """
-        if self._read_names.__len__() > 0:
+        parsed_data = dict()
+        errors = dict()
+        if len(self._read_names) > 0:
             data = self._connection.read_list_by_name(
                 self._read_names, structure_defs=self._read_struct_def
             )
-            parsed_data = dict()
-            for name in data.keys():
-                parsed_data = self._parse_flat_plc_var_to_dict(
-                    parsed_data, name, data[name]
-                )
-        else:
-            parsed_data = dict()
+            for name, value in data.items():
+                if isinstance(value, str) and value in _ADS_ERROR_TEXTS:
+                    errors[name] = value
+                    continue
+                parsed_data = self._parse_flat_plc_var_to_dict(parsed_data, name, value)
+        self.last_read_errors = errors
+        if errors and not parsed_data:
+            raise AdsReadError(errors)
         return parsed_data
 
     def _ensure_list_with_index_in_dict(self, list_name, _dict, _index):

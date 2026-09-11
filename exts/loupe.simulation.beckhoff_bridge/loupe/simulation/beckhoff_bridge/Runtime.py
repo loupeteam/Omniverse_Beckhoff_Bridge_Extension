@@ -2,7 +2,7 @@ import time
 import logging
 
 from threading import RLock
-from .Communication import CommunicationDriver
+from .Communication import CommunicationDriver, AdsReadError
 from ..common.RuntimeBase import Runtime_Base
 
 from .global_variables import (
@@ -51,6 +51,9 @@ class Runtime(Runtime_Base):
 
         self._was_connected = False
         self._is_connected = False
+        # Symbols reported as failed by the last read, so the status is pushed when
+        # the set changes rather than on every scan.
+        self._failed_symbols = frozenset()
 
         self.refresh_rate = _option(options, ATTR_BECKHOFF_BRIDGE_REFRESH, 20)
         self._enable_communication = _option(options, ATTR_BECKHOFF_BRIDGE_ENABLE, False)
@@ -182,6 +185,11 @@ class Runtime(Runtime_Base):
             if len(self._data) > 0:
                 # Push the data to the event stream
                 self._push_event(EVENT_TYPE_DATA_READ, data=self._data)
+            self._report_failed_symbols(self._ads_connector.last_read_errors)
+        except AdsReadError as e:
+            # Every symbol failed: the PLC has no program, or has gone away
+            self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
+            self._report_failed_symbols(e.errors)
         except Exception as e:
             self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
             # Only pyads.ADSError carries err_code; 1808 is "symbol not found"
@@ -190,6 +198,24 @@ class Runtime(Runtime_Base):
                 self._push_event(
                     EVENT_TYPE_STATUS, status=f"Error Reading One Of: {variables}"
                 )
+
+    def _report_failed_symbols(self, errors: dict):
+        """
+        Push a status when the set of symbols the PLC rejects changes: once when
+        they start failing, once when they recover.
+        """
+        failed = frozenset(errors)
+        if failed == self._failed_symbols:
+            return
+        if failed:
+            self._push_event(
+                EVENT_TYPE_STATUS,
+                status="Error Reading: " + "; ".join(
+                    f"{name}: {text}" for name, text in sorted(errors.items())),
+            )
+        else:
+            self._push_event(EVENT_TYPE_STATUS, status="Reading OK")
+        self._failed_symbols = failed
 
     def _read_data_ending(self):
         if self._ads_connector:

@@ -13,6 +13,7 @@ See MIGRATION.md for upgrading from 0.1.x.
 - `BeckhoffBridge.Manager` now addresses one PLC by the name of its prim under `/PLC/` (`Manager("PLC1")`). A warning is logged when a `Manager` is created for a PLC that is not loaded.
 - **Deprecated:** calling `Manager()` with no name (the 0.1.x form). It still works: it addresses `PLC1` and, if no `/PLC/PLC1` prim is loaded, creates that runtime in memory from the 0.1.x persistent settings (`PLC_AMS_NET_ID`, `REFRESH_RATE`, `ENABLE_COMMUNICATION`) with a warning. Nothing is written to the stage file, and the runtime is gone when the stage closes until the next `Manager()` call. Add a `/PLC/PLC1` prim to make it permanent. This path will be removed in 0.3.0.
 - Close both ADS connections on disconnect; previously the write connection leaked on every reconnect.
+- A symbol whose ADS read fails is no longer delivered as data (pyads returns the error text as the value); it is reported in the status as `Error Reading: <symbol>: <reason>` once, and `Reading OK` when it recovers. The USD mirror retries a symbol it had given up on and recovers by itself.
 - Shared runtime, system and USD code moved to the `loupe/simulation/common` submodule (loupeteam/Omni-Utils).
 
 [0.1.0]
