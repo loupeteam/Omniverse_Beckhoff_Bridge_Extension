@@ -1,5 +1,8 @@
 Changelog
 
+[0.2.1]
+- Fix a false `Manager('PLC1'): no PLC prim ... is loaded` warning logged on every stage open. The System built the mirror's `Manager` before registering the component it was creating.
+
 [0.2.0]
 See MIGRATION.md for upgrading from 0.1.x.
 - Support multiple PLCs. Each PLC is a prim under `/PLC/` carrying `beckhoff_bridge:*` attributes, so connection settings are saved in the stage instead of in persistent app settings.
