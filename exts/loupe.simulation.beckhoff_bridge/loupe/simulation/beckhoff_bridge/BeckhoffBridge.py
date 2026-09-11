@@ -10,9 +10,16 @@
 from typing import Callable
 import logging
 import carb.events
+import carb.settings
 import omni.kit.app
 from ..common.RuntimeBase import get_stream_name
 from ..common.BridgeManager import BridgeManager, Manager_Events as ManEvents
+from .global_variables import (
+    EXTENSION_NAME,
+    ATTR_BECKHOFF_BRIDGE_AMS_NET_ID,
+    ATTR_BECKHOFF_BRIDGE_ENABLE,
+    ATTR_BECKHOFF_BRIDGE_REFRESH,
+)
 
 beckhoff_bridge_name = "beckhoff_bridge"
 Manager_Events = ManEvents(beckhoff_bridge_name)
@@ -27,6 +34,56 @@ EVENT_TYPE_ENABLE = Manager_Events.EVENT_TYPE_ENABLE
 
 manager = None
 logger = logging.getLogger(__name__)
+
+# The PLC a 0.1.x script gets when it calls Manager() with no name.
+LEGACY_PLC_NAME = "PLC1"
+
+# Where 0.1.x stored its single connection (ui_builder.save_settings). Read once,
+# only to seed the legacy PLC; nothing is written back there.
+_LEGACY_SETTINGS = {
+    "PLC_AMS_NET_ID": ATTR_BECKHOFF_BRIDGE_AMS_NET_ID,
+    "REFRESH_RATE": ATTR_BECKHOFF_BRIDGE_REFRESH,
+    "ENABLE_COMMUNICATION": ATTR_BECKHOFF_BRIDGE_ENABLE,
+}
+
+
+def _legacy_options() -> dict:
+    """
+    The 0.1.x persistent settings translated to 0.2.0 component options.
+    Only keys that were actually saved are returned, so the defaults apply otherwise.
+    """
+    settings = carb.settings.get_settings()
+    options = {}
+    for old_key, attr in _LEGACY_SETTINGS.items():
+        value = settings.get("/persistent/" + EXTENSION_NAME + "/" + old_key)
+        if value is not None:
+            options[attr] = value
+    return options
+
+
+def _ensure_legacy_plc(system) -> bool:
+    """
+    DEPRECATED compatibility for 0.1.x scripts, scheduled for removal in 0.3.0.
+
+    Create the PLC1 runtime in memory when no PLC of that name is loaded, seeded
+    from the 0.1.x persistent settings. Nothing is authored into the user's file:
+    the prim is not written and the mirror lives in the session layer, so the
+    runtime is gone when the stage closes (and after the UI's Refresh) until the
+    next Manager() call. Add a /PLC/PLC1 prim to make it permanent.
+    """
+    if system.get_component(LEGACY_PLC_NAME) is not None:
+        return False
+    options = _legacy_options()
+    system.add_component(LEGACY_PLC_NAME, options, author_prim=False)
+    logger.warning(
+        "BeckhoffBridge.Manager() was called without a PLC name and no '%s%s' prim "
+        "is loaded, so a '%s' runtime was created from the 0.1.x persistent settings "
+        "(%s). This compatibility path is DEPRECATED and will be removed in 0.3.0: "
+        "add a '%s%s' prim to the stage and call Manager('%s') instead.",
+        system.system_root, LEGACY_PLC_NAME, LEGACY_PLC_NAME,
+        options or "defaults", system.system_root, LEGACY_PLC_NAME, LEGACY_PLC_NAME,
+    )
+    return True
 
 
 def get_system():
@@ -55,23 +112,32 @@ class Manager(BridgeManager):
         write_variable( name : str, value : any ): Writes a variable value to the Beckhoff Bridge.
     """
 
-    def __init__(self, Name="PLC1"):
+    def __init__(self, Name=None):
         """
         Initializes the BeckhoffBridge object for the PLC at /PLC/<Name>.
 
         Args:
-            Name (str): The name of the PLC prim under /PLC/. Defaults to "PLC1".
+            Name (str): The name of the PLC prim under /PLC/.
+
+        Calling with no name is the 0.1.x form and is DEPRECATED (removal planned
+        for 0.3.0): it addresses "PLC1" and, if no such PLC is loaded, creates one in
+        memory from the 0.1.x persistent settings so old scripts keep working.
         """
+        legacy = Name is None
+        if legacy:
+            Name = LEGACY_PLC_NAME
         self._plc_name = Name
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
         self._callbacks = []
 
-        # Since 0.2.0 a Manager addresses one PLC prim; before that there was a
-        # single connection configured in the app's persistent settings. A script
-        # written for 0.1.x still constructs Manager() and then waits for data that
-        # never comes, with nothing logged. Say so.
         system = get_system()
-        if system is not None and system.get_component(Name) is None:
+        if system is None:
+            return
+        if legacy:
+            _ensure_legacy_plc(system)
+        elif system.get_component(Name) is None:
+            # An explicit name that does not exist is a typo or a load-order problem;
+            # inventing a PLC would only hide it.
             logger.warning(
                 "BeckhoffBridge.Manager('%s'): no PLC prim '%s%s' is loaded, so no "
                 "data will arrive until one exists. Since 0.2.0 a PLC is configured "

@@ -78,6 +78,8 @@ Once variable reads are occurring, the `Monitor` pane shows a JSON string with t
 
 The variables on the PLC that should be read or written can also be specified from a custom user extension or app that uses the API available from the `loupe.simulation.beckhoff_bridge` module. One `Manager` addresses one PLC, by the name of its prim under `/PLC/`.
 
+Scripts written for 0.1.x that call `Manager()` with no name still work, but that form is **deprecated** and will be removed in 0.3.0. It addresses `PLC1` and, if no `/PLC/PLC1` prim is loaded, creates that runtime in memory from the 0.1.x persistent settings and logs a warning. Add a `/PLC/PLC1` prim to the stage and pass the name explicitly.
+
 ```python
 from loupe.simulation.beckhoff_bridge import BeckhoffBridge
 
