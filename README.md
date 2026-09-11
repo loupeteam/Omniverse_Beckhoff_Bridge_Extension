@@ -12,6 +12,10 @@ This is an extension that connects Beckhoff PLCs into the Omniverse ecosystem. I
 
 Detailed documentation can be found in the extension readme file [here](exts/loupe.simulation.beckhoff_bridge/docs/README.md).
 
+# Upgrading from 0.1.x
+
+Version 0.2.0 moves the PLC connection into the USD stage and supports several PLCs. Existing scripts keep working, but the connection has to be set up once as a prim. See the [migration guide](exts/loupe.simulation.beckhoff_bridge/docs/MIGRATION.md).
+
 # Licensing
 
 This software contains source code provided by NVIDIA Corporation. This code is subject to the terms of the [NVIDIA Omniverse License Agreement](https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html). Files are licensed as follows:
