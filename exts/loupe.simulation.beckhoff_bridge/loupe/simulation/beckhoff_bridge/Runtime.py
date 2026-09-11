@@ -53,7 +53,6 @@ class Runtime(Runtime_Base):
         self._is_connected = False
 
         self.refresh_rate = _option(options, ATTR_BECKHOFF_BRIDGE_REFRESH, 20)
-        self._log_jitter = _option(options, "LOG_JITTER", True)
         self._enable_communication = _option(options, ATTR_BECKHOFF_BRIDGE_ENABLE, False)
 
         variables = options.get(ATTR_BECKHOFF_BRIDGE_READ_VARS, "")
@@ -98,17 +97,14 @@ class Runtime(Runtime_Base):
             ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
         )
         self.refresh_rate = value.get(ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
-        variables = value.get(
-            ATTR_BECKHOFF_BRIDGE_READ_VARS, self._ads_connector._read_names
-        )
-        if variables:
-            variables = variables.split(",")
-            for name in variables:
-                self._ads_connector.add_read(name.strip())
+        # The variables option replaces the cyclic read list, so a variable removed
+        # from the prim stops being read. A missing key leaves the list alone.
+        if ATTR_BECKHOFF_BRIDGE_READ_VARS in value:
+            variables = value[ATTR_BECKHOFF_BRIDGE_READ_VARS] or ""
+            self.set_read_variables(variables.split(","))
 
     def _set_enable_communication(self, value):
         self._enable_communication = value
-        self._communication_initialized = False
         self._push_event(EVENT_TYPE_ENABLE, status={"enabled": value})
 
     # endregion
@@ -167,8 +163,10 @@ class Runtime(Runtime_Base):
                 self._push_event(EVENT_TYPE_CONNECTION, status="Connected")
 
         if not self._enable_communication and self._is_connected:
-            self._ads_connector.disconnect()
+            # Clear the flag first: the write thread checks it before using the
+            # write connection, which disconnect() is about to close.
             self._is_connected = False
+            self._ads_connector.disconnect()
 
         if not self._is_connected and self._was_connected:
             self._push_event(EVENT_TYPE_CONNECTION, status="Disconnected")
@@ -201,10 +199,15 @@ class Runtime(Runtime_Base):
 
     # region - External API
     def set_read_variables(self, variables):
+        """
+        Replace the cyclic read list. Blank entries are dropped and whitespace
+        (including the '\\r' a Windows multiline field leaves behind) is stripped,
+        since ADS reports a padded name as "symbol not found".
+        """
         self._ads_connector._read_names = []
         for name in variables:
-            # Validate the name
-            if name != "":
+            name = name.strip()
+            if name:
                 self._ads_connector.add_read(name)
 
     def queue_write(self, name, value):

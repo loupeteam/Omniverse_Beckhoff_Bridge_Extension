@@ -8,6 +8,7 @@
 """
 
 from typing import Callable
+import logging
 import carb.events
 import omni.kit.app
 from ..common.RuntimeBase import get_stream_name
@@ -25,6 +26,7 @@ EVENT_TYPE_STATUS = Manager_Events.EVENT_TYPE_STATUS
 EVENT_TYPE_ENABLE = Manager_Events.EVENT_TYPE_ENABLE
 
 manager = None
+logger = logging.getLogger(__name__)
 
 
 def get_system():
@@ -55,11 +57,27 @@ class Manager(BridgeManager):
 
     def __init__(self, Name="PLC1"):
         """
-        Initializes the BeckhoffBridge object.
+        Initializes the BeckhoffBridge object for the PLC at /PLC/<Name>.
+
+        Args:
+            Name (str): The name of the PLC prim under /PLC/. Defaults to "PLC1".
         """
         self._plc_name = Name
         self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
         self._callbacks = []
+
+        # Since 0.2.0 a Manager addresses one PLC prim; before that there was a
+        # single connection configured in the app's persistent settings. A script
+        # written for 0.1.x still constructs Manager() and then waits for data that
+        # never comes, with nothing logged. Say so.
+        system = get_system()
+        if system is not None and system.get_component(Name) is None:
+            logger.warning(
+                "BeckhoffBridge.Manager('%s'): no PLC prim '%s%s' is loaded, so no "
+                "data will arrive until one exists. Since 0.2.0 a PLC is configured "
+                "as a prim under /PLC/ (see the README), not in persistent settings.",
+                Name, system.system_root, Name,
+            )
 
     def __del__(self):
         """
@@ -144,11 +162,11 @@ class Manager(BridgeManager):
 
     def write_variables(self, data: dict):
         """
-        Writes a variable value to the Beckhoff Bridge.
+        Writes several variable values to the Beckhoff Bridge in one request.
 
         Args:
-            name (str): The name of the variable. "MAIN.myStruct.myvar1"
-            value (basic type): The value to be written.  1, 2.5, "Hello", ...
+            data (dict): Variable names mapped to the values to write.
+                {"MAIN.myStruct.myvar1": 1, "MAIN.str": "Hello"}
 
         Returns:
             None

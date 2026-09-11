@@ -30,20 +30,13 @@ from .global_variables import default_beckoff_properties
 from .Runtime import Runtime
 
 """
-This file serves as a basic template for the standard boilerplate operations
-that make a UI-based extension appear on the toolbar.
+Extension entry point.
 
-This implementation is meant to cover most use-cases without modification.
-Various callbacks are hooked up to a seperate class UIBuilder in .ui_builder.py
-Most users will be able to make their desired UI extension by interacting solely with
-UIBuilder.
-
-This class sets up standard useful callback functions in UIBuilder:
-    on_menu_callback: Called when extension is opened
-    on_timeline_event: Called when timeline is stopped, paused, or played
-    on_stage_event: Called when stage is opened or closed
-    cleanup: Called when resources such as physics subscriptions should be cleaned up
-    build_ui: User function that creates the UI they want.
+on_startup creates the System that owns one Runtime (ADS connection + worker
+threads) and one RuntimeUsd (stage mirror) per PLC prim under /PLC/, builds the
+menu entry and the (initially hidden) Beckhoff Bridge window, and keeps the
+runtimes in step with the stage on every open/close. The window's contents are
+built by UIBuilder in ui_builder.py.
 """
 
 MENU_HEADER = "Loupe"

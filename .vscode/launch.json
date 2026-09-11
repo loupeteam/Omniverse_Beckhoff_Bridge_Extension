@@ -16,7 +16,7 @@
             "name": "Python: Remote Attach",
             "type": "python",
             "request": "attach",
-            "processId": "${command:pickProcess}",
+            "processId": "${command:pickProcess}"
         }
     ]
 }
