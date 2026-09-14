@@ -41,7 +41,7 @@ class UIBuilder(SystemUI):
                 self._variables_field = ui.StringField(
                     ui.SimpleStringModel(
                         "\n".join(
-                            self.active_runtime._ads_connector._read_names
+                            self.active_runtime._ads_connector.read_names
                         )
                     ),
                     multiline=True,

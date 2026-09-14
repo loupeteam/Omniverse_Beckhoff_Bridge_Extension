@@ -2,7 +2,7 @@ import time
 import logging
 
 from threading import RLock
-from .Communication import CommunicationDriver, AdsReadError
+from beckhoff_bridge import AdsDriver, AdsReadError
 from ..common.RuntimeBase import Runtime_Base
 
 from .global_variables import (
@@ -40,7 +40,7 @@ class Runtime(Runtime_Base):
     def __init__(self, name="PLC1", options=None):
         options = options or {}
 
-        self._ads_connector = CommunicationDriver(
+        self._ads_connector = AdsDriver(
             _option(options, ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1")
         )
 
@@ -90,7 +90,7 @@ class Runtime(Runtime_Base):
             ATTR_BECKHOFF_BRIDGE_AMS_NET_ID: self.ams_net_id,
             ATTR_BECKHOFF_BRIDGE_ENABLE: self.enable_communication,
             ATTR_BECKHOFF_BRIDGE_REFRESH: self.refresh_rate,
-            ATTR_BECKHOFF_BRIDGE_READ_VARS: ",".join(self._ads_connector._read_names),
+            ATTR_BECKHOFF_BRIDGE_READ_VARS: ",".join(self._ads_connector.read_names),
         }
 
     @options.setter
@@ -194,7 +194,7 @@ class Runtime(Runtime_Base):
             self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
             # Only pyads.ADSError carries err_code; 1808 is "symbol not found"
             if getattr(e, "err_code", None) == 1808:
-                variables = self._ads_connector._read_names
+                variables = self._ads_connector.read_names
                 self._push_event(
                     EVENT_TYPE_STATUS, status=f"Error Reading One Of: {variables}"
                 )
@@ -226,15 +226,10 @@ class Runtime(Runtime_Base):
     # region - External API
     def set_read_variables(self, variables):
         """
-        Replace the cyclic read list. Blank entries are dropped and whitespace
-        (including the '\\r' a Windows multiline field leaves behind) is stripped,
-        since ADS reports a padded name as "symbol not found".
+        Replace the cyclic read list. Blank entries are dropped and whitespace is
+        stripped (see AdsDriver.set_read_names).
         """
-        self._ads_connector._read_names = []
-        for name in variables:
-            name = name.strip()
-            if name:
-                self._ads_connector.add_read(name)
+        self._ads_connector.set_read_names(variables)
 
     def queue_write(self, name, value):
         with self.write_lock:

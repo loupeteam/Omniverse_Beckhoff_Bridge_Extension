@@ -1,17 +1,19 @@
 """
+Ported unchanged from the extension's Kit tests (tests/tests.py).
 Test a wide variety of inputs for parsing PLC representations of data into a dictionary
 """
 
-import omni.kit.test
+import unittest
+
 from beckhoff_bridge import AdsDriver as CommunicationDriver
 
 # pylint: disable=W0212
 
-class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
+class TestParseNameSingleVar(unittest.TestCase):
     """Tests for single variable parsing."""
 
     # Run before every test
-    async def setUp(self):
+    def setUp(self):
         CommunicationDriver('127.0.0.1.1')
         self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
@@ -88,11 +90,11 @@ class TestParseNameSingleVar(omni.kit.test.AsyncTestCase):
                          msg=self.test_output_string.format(correct=correct_output, actual=actual_output))
 
 
-class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
+class TestParseNameSingleArray(unittest.TestCase):
     """Tests for single array parsing."""
 
     # Run before every test
-    async def setUp(self):
+    def setUp(self):
         self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
         self.test_different_data_types = ["30", 30, -18935, 30.151535, True, False]
@@ -201,11 +203,11 @@ class TestParseNameSingleArray(omni.kit.test.AsyncTestCase):
 
 
 
-class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
+class TestParseNameMultipart(unittest.TestCase):
     """Tests for multi-part parsing."""
 
     # Run before every test
-    async def setUp(self):
+    def setUp(self):
         self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"
         self.test_different_data_types = ["30", 30, -18935, 30.151535, True, False]
@@ -389,11 +391,11 @@ class TestParseNameMultipart(omni.kit.test.AsyncTestCase):
                              str(len(correct_output["Program"]["myStruct"]["myStruct"]["myArray"])))
 
 
-class TestParseNameComplex(omni.kit.test.AsyncTestCase):
+class TestParseNameComplex(unittest.TestCase):
     """Tests for complex variable parsing."""
 
     # Run before every test
-    async def setUp(self):
+    def setUp(self):
         self.name_dict = {}
         self.driver = CommunicationDriver('127.0.0.1.1')
         self.test_output_string = "correct: {correct}\nactual: {actual}\n\n"

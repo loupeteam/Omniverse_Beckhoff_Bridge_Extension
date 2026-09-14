@@ -1,5 +1,8 @@
 Changelog
 
+[Unreleased]
+- The ADS driver moved out of the extension into the plain-Python `beckhoff_bridge` package at the repo root (`beckhoff_bridge/`), with no Omniverse dependency and its own pytest suite. The extension loads it from there. `loupe.simulation.beckhoff_bridge.Communication` still re-exports `CommunicationDriver` (now an alias of `beckhoff_bridge.AdsDriver`) and `AdsReadError`. First step of `docs/ARCHITECTURE_PLAN.md`.
+
 [0.2.1]
 - Fix a false `Manager('PLC1'): no PLC prim ... is loaded` warning logged on every stage open. The System built the mirror's `Manager` before registering the component it was creating.
 
