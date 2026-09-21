@@ -8,10 +8,13 @@
   The ADS driver. Plain Python: nothing here may import from Omniverse or Kit.
 """
 
-import re
-
 import pyads
 from pyads.errorcodes import ERROR_CODES
+
+from plc_bridge import PlcDriver, ReadResult, nest_symbol
+
+# ADS error code for "symbol not found"
+_ADS_SYMBOL_NOT_FOUND = 1808
 
 # pyads.Connection.read_list_by_name does not raise when one symbol of a sum read
 # fails: it puts the ADS error text (e.g. "symbol not found") in that symbol's slot.
@@ -34,104 +37,24 @@ class AdsReadError(Exception):
             len(errors), "; ".join("{}: {}".format(k, v) for k, v in errors.items())))
 
 
-def _ensure_list_with_index_in_dict(list_name, _dict, _index):
-    """
-    Ensure that dictionary has a key of list_name, that its value is a list,
-    and that the list is long enough to include the index
-    """
-
-    # Create list if not in dict
-    if list_name not in _dict or not isinstance(_dict[list_name], list):
-        _dict[list_name] = []
-
-    # Extend list if not long enough
-    if _index >= len(_dict[list_name]):
-        _dict[list_name].extend([None] * (_index - len(_dict[list_name]) + 1))
-
-
 def parse_flat_plc_var_to_dict(plc_var_dict: dict, plc_var: str, value) -> dict:
     """
-    Convert a flat, string representation of a PLC var into a dictionary.
-
-    This function uses recursion to build up the complete dictionary of PLC variables, and values.
-
-    This is performed every read, rather than being cached, to not assume PLC variable values
-    to be at their previous value if they are not being actively read. Caching can be
-    performed in the usage of this library if necessary.
-
-    Args:
-        plc_var_dict (dict): The dictionary to write the value into
-        plc_var (str): The variable name in flattened string form ("Program:myStruct.myVar")
-        value (any): The value to write to the dictionary entry
-
-    Returns:
-        dict: plc_var_dict, updated in place.
+    Write one flat symbol ("GVL.myStruct[3].myVar") into a nested dict, in place.
+    0.2.x name of plc_bridge.nest_symbol, which both vendor bridges now share.
     """
-
-    name_parts = re.split("[.]", plc_var)
-
-    if len(name_parts) > 1:
-        # Multiple parts in passed-in plc_var (e.g. Program:myStruct[3].myVar has 3 parts)
-        # From here we want to use recursion to assign a dictionary value (i.e. sub dictionary) to the first part.
-
-        first_part_is_array = "[" in name_parts[0]
-
-        ## Get pre-existing subdictionary (or create if necessary)
-        if first_part_is_array:
-            array_name, array_index = name_parts[0].split("[")
-            array_index = int(array_index[:-1])
-
-            # Ensure array is in dictionary and is long enough
-            _ensure_list_with_index_in_dict(array_name, plc_var_dict, array_index)
-
-            # Ensure array index location has dict-typed value
-            if not isinstance(plc_var_dict[array_name][array_index], dict):
-                plc_var_dict[array_name][array_index] = {}
-
-            existing_sub_dict = plc_var_dict[array_name][array_index]
-        else:
-            member_plc_var = name_parts[0]
-
-            ## Ensure corresponding subdictionary exists
-            if member_plc_var not in plc_var_dict or not isinstance(
-                plc_var_dict[member_plc_var], dict
-            ):
-                plc_var_dict[member_plc_var] = {}
-
-            existing_sub_dict = plc_var_dict[member_plc_var]
-
-        # Get subdictionary from using remaining part of path
-        sub_plc_var = ".".join(name_parts[1:])
-        sub_dict = parse_flat_plc_var_to_dict(existing_sub_dict, sub_plc_var, value)
-
-        # Assign result of recursive call (subdictionary) to first part
-        if first_part_is_array:
-            plc_var_dict[array_name][array_index] = sub_dict
-        else:
-            plc_var_dict[member_plc_var] = sub_dict
-    else:
-        # Only one part in passed-in plc_var
-        # Proceed to assign value
-
-        if "[" in name_parts[0]:
-            array_name, array_index = name_parts[0].split("[")
-            array_index = int(array_index[:-1])
-
-            # Ensure array is in dictionary and is long enough
-            _ensure_list_with_index_in_dict(array_name, plc_var_dict, array_index)
-
-            plc_var_dict[array_name][array_index] = value
-        else:
-            # Write value (regardless of whether it exists or not)
-            plc_var_dict[name_parts[0]] = value
-
-    return plc_var_dict
+    return nest_symbol(plc_var_dict, plc_var, value, AdsDriver.symbol_separators)
 
 
-class AdsDriver:
+class AdsDriver(PlcDriver):
     """
-    An ADS client for one PLC. Holds the list of symbols to read cyclically and
-    provides read and write methods.
+    An ADS client for one PLC, implementing the plc_bridge driver contract
+    (connect / disconnect / is_connected / read / write).
+
+    It opens two ADS connections, one for reads and one for writes, so the
+    runtime's read and write threads never share one.
+
+    The read-list methods (add_read, set_read_names, read_data, write_data) are
+    the 0.2.x API, kept for code that drives the driver without a PlcRuntime.
 
     Args:
         ams_net_id (str): The AMS Net ID of the target device.
@@ -141,6 +64,8 @@ class AdsDriver:
         last_read_errors (dict): Per-symbol ADS errors from the last read_data() call,
             symbol name -> error text.
     """
+
+    symbol_separators = "."
 
     def __init__(self, ams_net_id: str):
         self.ams_net_id = ams_net_id
@@ -188,45 +113,63 @@ class AdsDriver:
     # endregion
     # region - Data
 
+    def read(self, symbols) -> ReadResult:
+        """
+        Read the symbols in one ADS sum read.
+
+        pyads does not raise when one symbol of a sum read fails: it puts the ADS
+        error text (e.g. "symbol not found") in that symbol's slot. Those go to
+        ReadResult.errors instead of being delivered as the PLC value.
+        """
+        result = ReadResult()
+        symbols = list(symbols)
+        if not symbols:
+            return result
+        structure_defs = {k: v for k, v in self._read_struct_def.items() if k in symbols}
+        try:
+            data = self._connection.read_list_by_name(symbols, structure_defs=structure_defs)
+        except pyads.ADSError as e:
+            if getattr(e, "err_code", None) == _ADS_SYMBOL_NOT_FOUND:
+                raise pyads.ADSError(text=f"{e}; one of: {symbols}") from e
+            raise
+        for name, value in data.items():
+            if isinstance(value, str) and value in _ADS_ERROR_TEXTS:
+                result.errors[name] = value
+            else:
+                result.values[name] = value
+        return result
+
+    def write(self, values):
+        """
+        Write flat symbol -> value in one ADS sum write, e.g.
+        {'MAIN.b_Execute': False, 'MAIN.r32_TestReal': 54.321}
+        """
+        self._connection_write.write_list_by_name(dict(values))
+
     def write_data(self, data: dict):
-        """
-        Writes data to the target device.
-
-        Args:
-            data (dict): A dictionary containing the data to be written to the PLC
-            e.g.
-            data = {'MAIN.b_Execute': False, 'MAIN.str_TestString': 'Goodbye World', 'MAIN.r32_TestReal': 54.321}
-
-        """
-        self._connection_write.write_list_by_name(data)
+        """0.2.x name of write."""
+        self.write(data)
 
     def read_data(self) -> dict:
         """
-        Reads all variables from the cyclic read list.
+        Reads all variables from the cyclic read list (0.2.x API).
 
         Returns:
-            dict: A dictionary containing the parsed data. Symbols whose read failed
-            are left out; their error texts are in last_read_errors.
+            dict: The nested data. Symbols whose read failed are left out; their
+            error texts are in last_read_errors.
 
         Raises:
             AdsReadError: when every requested symbol failed (the PLC is gone or
             has no program), so the caller can report a read error.
 
         """
+        result = self.read(self._read_names)
         parsed_data = dict()
-        errors = dict()
-        if len(self._read_names) > 0:
-            data = self._connection.read_list_by_name(
-                self._read_names, structure_defs=self._read_struct_def
-            )
-            for name, value in data.items():
-                if isinstance(value, str) and value in _ADS_ERROR_TEXTS:
-                    errors[name] = value
-                    continue
-                parsed_data = parse_flat_plc_var_to_dict(parsed_data, name, value)
-        self.last_read_errors = errors
-        if errors and not parsed_data:
-            raise AdsReadError(errors)
+        for name, value in result.values.items():
+            parse_flat_plc_var_to_dict(parsed_data, name, value)
+        self.last_read_errors = result.errors
+        if result.errors and not parsed_data:
+            raise AdsReadError(result.errors)
         return parsed_data
 
     def _parse_flat_plc_var_to_dict(self, plc_var_dict, plc_var, value):

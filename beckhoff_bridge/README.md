@@ -1,15 +1,31 @@
 # beckhoff_bridge
 
 The Beckhoff ADS driver used by the `loupe.simulation.beckhoff_bridge` Omniverse
-extension, as a plain Python package. It imports nothing from Omniverse or Kit;
-its only dependency is [pyads](https://github.com/stlehmann/pyads).
+extension, as a plain Python package. It imports nothing from Omniverse or Kit.
+It depends on [pyads](https://github.com/stlehmann/pyads) and on `plc_bridge`,
+the vendor-neutral runtime and driver contract from
+[Omni-Utils](https://github.com/loupeteam/Omni-Utils).
 
-This is the first piece of the layering described in
-[docs/ARCHITECTURE_PLAN.md](../docs/ARCHITECTURE_PLAN.md): the vendor library
-that a future vendor-neutral runtime will drive. For now the extension's
-`Runtime` drives it directly.
+`AdsDriver` implements the `plc_bridge.PlcDriver` contract, so it is
+interchangeable with any other vendor's driver. See
+[docs/ARCHITECTURE_PLAN.md](../docs/ARCHITECTURE_PLAN.md) for the layering.
 
-## Usage
+## Usage with the polling runtime
+
+```python
+from plc_bridge import PlcRuntime
+from beckhoff_bridge import AdsDriver
+
+plc = PlcRuntime(AdsDriver("10.20.30.40.1.1"), refresh_ms=20, enabled=True)
+plc.set_read_variables(["GVL.Axes[0].ActualPosition"])
+plc.on_data(print)      # {"GVL": {"Axes": [{"ActualPosition": 1.5}]}}
+plc.on_status(print)    # "Error Reading: GVL.x: symbol not found", "Reading OK", ...
+plc.start()
+```
+
+Swapping to another vendor changes only the driver import and its arguments.
+
+## Usage of the driver alone
 
 ```python
 from beckhoff_bridge import AdsDriver, AdsReadError
@@ -33,6 +49,7 @@ A symbol the PLC rejects is left out of the result and reported in
 ## Tests
 
 ```bash
+pip install -e ../exts/loupe.simulation.beckhoff_bridge/loupe/simulation/common/plc_bridge
 pip install -e .[test]
 pytest
 ```
@@ -41,6 +58,7 @@ The tests use a fake connection and do not need a PLC or the TwinCAT router.
 
 ## Development in the extension repo
 
-The extension loads this package straight from the repo (see
-`[[python.module]]` in the extension's `config/extension.toml`), so no install
-step is needed when working on both together.
+The extension loads this package and `plc_bridge` straight from the repo (see
+the `[[python.module]]` entries in the extension's `config/extension.toml`), so
+no install step is needed when working on them together. `plc_bridge` is not on
+PyPI yet, hence the path install above.

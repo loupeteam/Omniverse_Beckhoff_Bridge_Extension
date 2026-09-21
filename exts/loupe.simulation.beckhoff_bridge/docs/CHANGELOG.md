@@ -2,6 +2,9 @@ Changelog
 
 [Unreleased]
 - The ADS driver moved out of the extension into the plain-Python `beckhoff_bridge` package at the repo root (`beckhoff_bridge/`), with no Omniverse dependency and its own pytest suite. The extension loads it from there. `loupe.simulation.beckhoff_bridge.Communication` still re-exports `CommunicationDriver` (now an alias of `beckhoff_bridge.AdsDriver`) and `AdsReadError`. First step of `docs/ARCHITECTURE_PLAN.md`.
+- The polling (threads, connect and retry, read list, write queue, status reporting) moved into the vendor-neutral, plain-Python `plc_bridge.PlcRuntime` in the Omni-Utils submodule, and `AdsDriver` implements its `PlcDriver` contract. The extension's `Runtime` is now an adapter between that runtime and the message bus. Bus event names, message format and status texts are unchanged, with two exceptions: a read where every symbol fails reports `Error Reading: all N symbol(s) failed` followed by the per-symbol line, and an ADS "symbol not found" for a whole read is one status naming the symbols instead of two.
+- Setting the AMS Net Id to the value it already has no longer drops the connection.
+- `Runtime` no longer derives from `Runtime_Base`. It gained `read_variables`, `is_connected`, `plc` and `driver`; its private `_ads_connector` is gone.
 
 [0.2.1]
 - Fix a false `Manager('PLC1'): no PLC prim ... is loaded` warning logged on every stage open. The System built the mirror's `Manager` before registering the component it was creating.

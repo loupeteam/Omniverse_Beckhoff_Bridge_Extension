@@ -1,8 +1,16 @@
 # Architecture plan: vendor-neutral PLC bridge
 
-Status: **proposal, not scheduled.** Written 2026-09-11 after the 0.2.1 release.
-Nothing here is implemented. It records the direction agreed in discussion so the
-later refactor starts from a shared picture.
+Status: **in progress on branches, nothing merged.** Written 2026-09-11 after the
+0.2.1 release. It records the direction agreed in discussion.
+
+| Piece | State |
+|---|---|
+| `beckhoff_bridge` library | Done on `refactor/beckhoff-library` (this repo) |
+| `plc_bridge` contract and runtime | Done on `refactor/plc-bridge` (Omni-Utils) |
+| Extension `Runtime` as an adapter over `PlcRuntime` | Done on `refactor/beckhoff-library` |
+| Framework extension, driver registry, no submodule | Not started |
+| USD mirror as an opt-in component | Not started |
+| B&R driver written to the contract | Not started |
 
 ## Goal
 
@@ -42,8 +50,7 @@ No `omni` or `carb` imports anywhere in this layer; installable with pip.
 The contract lives here, below Kit, so that two vendor libraries can be swapped
 without the framework extension present.
 
-**`beckhoff_bridge`.** The pyads driver. Today's `Communication.py` and
-`Runtime.py` already meet the no-Kit bar.
+**`beckhoff_bridge`.** The pyads driver, `AdsDriver`, implementing the contract.
 
 **`br_bridge`.** The B&R driver. Not a library yet; written to the contract from
 the start.
@@ -156,12 +163,28 @@ The simulation code, the `Manager` calls, the bus subscriptions and the mirror
 paths are untouched. Symbol names are the one thing that may differ between
 vendors; that is a property of the PLC programs, not of the bridge.
 
+## Driver interface decisions
+
+Settled 2026-09-21 by reading both existing drivers: the ADS one here and the
+B&R one (`websockets_driver.py`, OMJSON over a websocket). They already had the
+same shape. The three real differences, and how the contract absorbs them:
+
+| Difference | Decision |
+|---|---|
+| B&R is `async`, ADS is synchronous | The contract is **synchronous**. The runtime calls it from its own threads; a driver on an async transport owns its event loop. Forcing ADS into `async` would buy nothing. |
+| B&R symbols are `Program:struct.member`; its parser copy split on `:` and `.` | The driver declares `symbol_separators`. Drivers return **flat** symbol to value, and the shared runtime does the nesting, so both vendors produce the same data shape from one parser instead of two copies. |
+| Only ADS reports per-symbol failures | `ReadResult` has `values` and `errors`. A driver that cannot tell leaves `errors` empty. A failed request raises. |
+
+Also fixed by the contract: the read list belongs to the runtime and is passed
+with each `read`; `read` and `write` may be called from two threads at once and
+the driver makes that safe (ADS uses two connections; a single websocket would
+use a lock).
+
 ## Open questions
 
-- Exact driver interface in `plc_bridge`: sync vs. async reads, batch size, how
-  struct and array symbols are described so the runtime can flatten them the
-  same way for every vendor. ADS and the B&R protocol answer these differently;
-  settle this first, before either library is written to it.
+- Struct definitions. pyads can read a whole struct with a `structure_def`; that
+  stays an `AdsDriver` extra (`add_read(name, structure_def)`) and is not in the
+  contract. Revisit if B&R needs an equivalent.
 - Whether the framework extension should also carry the vendor-neutral parts of
   the UI (connection status, variable list) and let vendors add a settings panel.
 - Whether vendor libraries publish to PyPI or stay in-repo and are added to the

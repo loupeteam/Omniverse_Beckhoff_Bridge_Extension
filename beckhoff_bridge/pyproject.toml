@@ -10,7 +10,7 @@ readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Loupe", email = "info@loupe.team" }]
 requires-python = ">=3.10"
-dependencies = ["pyads>=3.4"]
+dependencies = ["pyads>=3.4", "plc-bridge"]
 keywords = ["Beckhoff", "ADS", "PLC", "TwinCAT"]
 
 [project.optional-dependencies]

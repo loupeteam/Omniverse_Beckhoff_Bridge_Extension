@@ -66,3 +66,84 @@ def test_disconnect_is_safe_when_not_connected():
     d = AdsDriver("1.2.3.4.1.1")
     d.disconnect()
     assert d.is_connected() is False
+
+
+# region - plc_bridge driver contract
+
+def test_driver_implements_the_contract():
+    from plc_bridge import PlcDriver
+    assert isinstance(AdsDriver("1.2.3.4.1.1"), PlcDriver)
+    assert AdsDriver.symbol_separators == "."
+
+
+def test_read_returns_flat_values_and_errors(driver):
+    driver._connection = FakeConnection({"A.x": 1.5, "B": "symbol not found"})
+    result = driver.read(["A.x", "B"])
+    assert result.values == {"A.x": 1.5}
+    assert result.errors == {"B": "symbol not found"}
+
+
+def test_read_of_nothing_does_not_touch_the_connection():
+    d = AdsDriver("1.2.3.4.1.1")
+    result = d.read([])
+    assert result.values == {} and result.errors == {}
+
+
+def test_read_passes_only_the_struct_defs_it_needs():
+    seen = {}
+
+    class Conn:
+        def read_list_by_name(self, names, structure_defs=None):
+            seen["defs"] = structure_defs
+            return {n: 0 for n in names}
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d.add_read("A", structure_def=("a_def",))
+    d.add_read("B", structure_def=("b_def",))
+    d._connection = Conn()
+    d.read(["B"])
+    assert seen["defs"] == {"B": ("b_def",)}
+
+
+def test_symbol_not_found_for_the_whole_read_names_the_symbols():
+    import pyads
+
+    class Conn:
+        def read_list_by_name(self, names, structure_defs=None):
+            raise pyads.ADSError(err_code=1808)
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection = Conn()
+    with pytest.raises(pyads.ADSError) as info:
+        d.read(["GVL.a", "GVL.b"])
+    assert "GVL.a" in str(info.value) and "GVL.b" in str(info.value)
+
+
+def test_write_goes_to_the_write_connection():
+    written = []
+
+    class Conn:
+        def write_list_by_name(self, data):
+            written.append(data)
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection_write = Conn()
+    d.write({"GVL.a": 1})
+    d.write_data({"GVL.b": 2})
+    assert written == [{"GVL.a": 1}, {"GVL.b": 2}]
+
+
+def test_runtime_drives_the_ads_driver(driver):
+    from plc_bridge import PlcRuntime
+
+    driver.connect = lambda: None
+    driver._connection = FakeConnection({"A.x": 1.5, "A.arr[0]": 2.0, "B": True})
+    plc = PlcRuntime(driver, enabled=True)
+    plc.set_read_variables(driver.read_names)
+    driver.disconnect = lambda: None
+    seen = []
+    plc.on_data(seen.append)
+    plc.scan_read()
+    assert seen == [{"A": {"x": 1.5, "arr": [2.0]}, "B": True}]
+
+# endregion
