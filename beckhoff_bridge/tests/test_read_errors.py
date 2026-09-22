@@ -214,3 +214,34 @@ def test_request_errors_do_not_mark_the_link_lost():
     with pytest.raises(pyads.ADSError):
         d.read(["GVL.a"])
     assert d.is_connected()
+
+
+def test_transport_error_from_a_replaced_connection_is_ignored():
+    """A write stuck on the old connection returns after the driver reconnected."""
+    import pyads
+
+    class Stale:
+        is_open = False
+
+        def write_list_by_name(self, data):
+            raise pyads.ADSError(err_code=7)
+
+    class Fresh:
+        is_open = True
+
+    d = AdsDriver("1.2.3.4.1.1")
+    stale = Stale()
+    d._connection_write = stale
+    d._connection = Fresh()
+
+    # the call goes out on the stale connection, then the driver is reconnected
+    original = stale.write_list_by_name
+
+    def write_then_reconnect(data):
+        d._connection_write = Fresh()
+        return original(data)
+
+    stale.write_list_by_name = write_then_reconnect
+    with pytest.raises(pyads.ADSError):
+        d.write({"GVL.a": 1})
+    assert d.is_connected()

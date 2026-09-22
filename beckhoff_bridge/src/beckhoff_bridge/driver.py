@@ -140,10 +140,11 @@ class AdsDriver(PlcDriver):
         if not symbols:
             return result
         structure_defs = {k: v for k, v in self._read_struct_def.items() if k in symbols}
+        connection = self._connection
         try:
-            data = self._connection.read_list_by_name(symbols, structure_defs=structure_defs)
+            data = connection.read_list_by_name(symbols, structure_defs=structure_defs)
         except pyads.ADSError as e:
-            self._note_transport(e)
+            self._note_transport(connection, e)
             if getattr(e, "err_code", None) == _ADS_SYMBOL_NOT_FOUND:
                 raise pyads.ADSError(text=f"{e}; one of: {symbols}") from e
             raise
@@ -163,15 +164,23 @@ class AdsDriver(PlcDriver):
             symbol -> ADS error text for each symbol the PLC rejected; empty when
             all succeeded. pyads reports "no error" per symbol on success.
         """
+        connection = self._connection_write
         try:
-            results = self._connection_write.write_list_by_name(dict(values)) or {}
+            results = connection.write_list_by_name(dict(values)) or {}
         except pyads.ADSError as e:
-            self._note_transport(e)
+            self._note_transport(connection, e)
             raise
         return {name: text for name, text in results.items() if text != _ADS_NO_ERROR}
 
-    def _note_transport(self, error):
-        if getattr(error, "err_code", None) in _ADS_TRANSPORT_ERRORS:
+    def _note_transport(self, connection, error):
+        """
+        Mark the link lost on a transport-class error, but only if it came from
+        a connection we still hold: a request that was in flight on a connection
+        disconnect() has since replaced says nothing about the current one.
+        """
+        if getattr(error, "err_code", None) not in _ADS_TRANSPORT_ERRORS:
+            return
+        if connection is self._connection or connection is self._connection_write:
             self._transport_lost = True
 
     def write_data(self, data: dict):
