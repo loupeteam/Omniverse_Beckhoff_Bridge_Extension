@@ -333,3 +333,37 @@ def test_overlapping_connects_leave_one_pair_and_leak_nothing(monkeypatch):
     d.disconnect()
     assert all(c.closed for c in opened)
     assert not d.is_connected()
+
+
+def test_connect_to_another_target_replaces_the_pair(monkeypatch):
+    import pyads
+
+    opened = []
+
+    class FakePyadsConnection:
+        def __init__(self, netid, port):
+            opened.append(self)
+            self.netid = netid
+            self.closed = False
+            self.is_open = True
+
+        def open(self):
+            pass
+
+        def close(self):
+            self.closed = True
+
+        def set_timeout(self, ms):
+            pass
+
+        def read_state(self):
+            return (5, 0)
+
+    monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
+    d = AdsDriver("1.1.1.1.1.1")
+    d.connect()
+    d.connect("2.2.2.2.1.1")
+    assert d.ams_net_id == "2.2.2.2.1.1"
+    assert d._connection.netid == "2.2.2.2.1.1" and d._connection_write.netid == "2.2.2.2.1.1"
+    assert [c.closed for c in opened] == [True, True, False, False]
+    assert d.is_connected()

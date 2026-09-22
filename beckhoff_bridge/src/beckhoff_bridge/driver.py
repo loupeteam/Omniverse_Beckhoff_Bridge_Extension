@@ -102,6 +102,8 @@ class AdsDriver(PlcDriver):
         # worker the runtime gave up on may overlap connect() or disconnect()
         # on another thread.
         self._publish_lock = threading.Lock()
+        # The AMS Net Id the published pair was opened for
+        self._published_net_id = None
         self._transport_lost = False
         self.last_read_errors = dict()
 
@@ -247,10 +249,11 @@ class AdsDriver(PlcDriver):
         # end: a disconnect() from another thread while this runs (the runtime
         # gave up waiting for us) then finds either nothing or a complete pair,
         # never a half-built one.
+        net_id = self.ams_net_id
         opened = []
         try:
             for _ in range(2):
-                connection = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
+                connection = pyads.Connection(net_id, pyads.PORT_TC3PLC1)
                 connection.open()
                 opened.append(connection)
                 connection.set_timeout(ADS_TIMEOUT_MS)
@@ -259,16 +262,20 @@ class AdsDriver(PlcDriver):
             _close_all(opened)
             raise
         with self._publish_lock:
-            if self._connection is not None and not self._transport_lost:
-                # Another connect() got here first (a worker the runtime gave up
-                # on, still inside connect()). One working pair is enough; keep
-                # the one in use and close ours.
+            if (self._connection is not None and not self._transport_lost
+                    and self._published_net_id == net_id):
+                # Another connect() to the same PLC got here first (a worker the
+                # runtime gave up on, still inside connect()). One working pair
+                # is enough; keep the one in use and close ours. A second
+                # connect() without a disconnect() is therefore a no-op.
                 _close_all(opened)
                 return
-            # Nothing published, or a pair marked lost: ours replaces it.
+            # Nothing published, a pair marked lost, or a pair to a different
+            # PLC: ours replaces it.
             stale = (self._connection, self._connection_write)
             self._transport_lost = False
             self._connection, self._connection_write = opened
+            self._published_net_id = net_id
         _close_all(stale)
 
     def disconnect(self):
@@ -284,6 +291,7 @@ class AdsDriver(PlcDriver):
             connections = (self._connection, self._connection_write)
             self._connection = None
             self._connection_write = None
+            self._published_net_id = None
         _close_all(connections)
 
     def is_connected(self) -> bool:

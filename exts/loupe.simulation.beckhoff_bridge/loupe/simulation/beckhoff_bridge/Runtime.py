@@ -155,7 +155,7 @@ class Runtime:
         self.enable_communication = value.get(
             ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
         )
-        self.refresh_rate = value.get(ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
+        self.refresh_rate = _option(value, ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
         # The variables option replaces the cyclic read list, so a variable removed
         # from the prim stops being read. A missing key leaves the list alone.
         if ATTR_BECKHOFF_BRIDGE_READ_VARS in value:
