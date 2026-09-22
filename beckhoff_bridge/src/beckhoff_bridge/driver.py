@@ -15,6 +15,13 @@ from plc_bridge import PlcDriver, ReadResult, nest_symbol
 
 # ADS error code for "symbol not found"
 _ADS_SYMBOL_NOT_FOUND = 1808
+# ADS errors that mean the link to the PLC is gone rather than the request
+# being wrong: target port / machine not found, port disabled, timeout, port
+# not opened. After one of these is_connected() reports False until connect().
+_ADS_TRANSPORT_ERRORS = frozenset({6, 7, 18, 1861, 1864})
+# pyads' default request timeout is 5 s, longer than the runtime waits for a
+# worker on stop(). ADS cannot abort a request in flight, so keep it short.
+ADS_TIMEOUT_MS = 1000
 # What pyads' sum write reports for a symbol that was written
 _ADS_NO_ERROR = ERROR_CODES[0]
 
@@ -53,7 +60,11 @@ class AdsDriver(PlcDriver):
     (connect / disconnect / is_connected / read / write).
 
     It opens two ADS connections, one for reads and one for writes, so the
-    runtime's read and write threads never share one.
+    runtime's read and write threads never share one. Both carry a one-second
+    request timeout (ADS_TIMEOUT_MS) because ADS cannot abort a request in
+    flight. pyads' `is_open` only says whether we opened the port, so a
+    transport-class ADS error on a read or write marks the link lost and
+    is_connected() reports False until the next connect().
 
     The read-list methods (add_read, set_read_names, read_data, write_data) are
     the 0.2.x API, kept for code that drives the driver without a PlcRuntime.
@@ -75,6 +86,7 @@ class AdsDriver(PlcDriver):
         self._read_struct_def = dict()
         self._connection = None
         self._connection_write = None
+        self._transport_lost = False
         self.last_read_errors = dict()
 
     # region - Read list
@@ -131,6 +143,7 @@ class AdsDriver(PlcDriver):
         try:
             data = self._connection.read_list_by_name(symbols, structure_defs=structure_defs)
         except pyads.ADSError as e:
+            self._note_transport(e)
             if getattr(e, "err_code", None) == _ADS_SYMBOL_NOT_FOUND:
                 raise pyads.ADSError(text=f"{e}; one of: {symbols}") from e
             raise
@@ -150,8 +163,16 @@ class AdsDriver(PlcDriver):
             symbol -> ADS error text for each symbol the PLC rejected; empty when
             all succeeded. pyads reports "no error" per symbol on success.
         """
-        results = self._connection_write.write_list_by_name(dict(values)) or {}
+        try:
+            results = self._connection_write.write_list_by_name(dict(values)) or {}
+        except pyads.ADSError as e:
+            self._note_transport(e)
+            raise
         return {name: text for name, text in results.items() if text != _ADS_NO_ERROR}
+
+    def _note_transport(self, error):
+        if getattr(error, "err_code", None) in _ADS_TRANSPORT_ERRORS:
+            self._transport_lost = True
 
     def write_data(self, data: dict):
         """0.2.x name of write."""
@@ -197,12 +218,15 @@ class AdsDriver(PlcDriver):
         if ams_net_id is not None:
             self.ams_net_id = ams_net_id
 
+        self._transport_lost = False
         self._connection = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
         self._connection.open()
+        self._connection.set_timeout(ADS_TIMEOUT_MS)
         adsState, deviceState = self._connection.read_state()
 
         self._connection_write = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
         self._connection_write.open()
+        self._connection_write.set_timeout(ADS_TIMEOUT_MS)
 
     def disconnect(self):
         """
@@ -229,7 +253,7 @@ class AdsDriver(PlcDriver):
 
         """
         try:
-            if self._connection is None:
+            if self._connection is None or self._transport_lost:
                 return False
             return self._connection.is_open
         except Exception:

@@ -158,3 +158,59 @@ def test_runtime_drives_the_ads_driver(driver):
     assert seen == [{"A": {"x": 1.5, "arr": [2.0]}, "B": True}]
 
 # endregion
+
+
+def test_transport_error_marks_the_link_lost_until_reconnect(monkeypatch):
+    import pyads
+
+    class Conn:
+        is_open = True
+
+        def read_list_by_name(self, names, structure_defs=None):
+            raise pyads.ADSError(err_code=1861)  # timeout
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection = Conn()
+    assert d.is_connected()
+    with pytest.raises(pyads.ADSError):
+        d.read(["GVL.a"])
+    assert not d.is_connected()
+
+    opened = []
+
+    class FakePyadsConnection:
+        def __init__(self, netid, port):
+            opened.append(netid)
+            self.is_open = True
+            self.timeout = None
+
+        def open(self):
+            pass
+
+        def set_timeout(self, ms):
+            self.timeout = ms
+
+        def read_state(self):
+            return (5, 0)
+
+    monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
+    d.connect()
+    assert d.is_connected()
+    assert opened == ["1.2.3.4.1.1"] * 2
+    assert d._connection.timeout == 1000 and d._connection_write.timeout == 1000
+
+
+def test_request_errors_do_not_mark_the_link_lost():
+    import pyads
+
+    class Conn:
+        is_open = True
+
+        def read_list_by_name(self, names, structure_defs=None):
+            raise pyads.ADSError(err_code=1808)  # symbol not found
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection = Conn()
+    with pytest.raises(pyads.ADSError):
+        d.read(["GVL.a"])
+    assert d.is_connected()
