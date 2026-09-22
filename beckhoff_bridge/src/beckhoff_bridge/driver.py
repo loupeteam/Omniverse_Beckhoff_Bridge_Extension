@@ -262,6 +262,13 @@ class AdsDriver(PlcDriver):
             _close_all(opened)
             raise
         with self._publish_lock:
+            if net_id != self.ams_net_id:
+                # The target changed while we were connecting (a worker the
+                # runtime gave up on, finishing after the address was edited).
+                # A pair to the old PLC must never replace one to the new.
+                _close_all(opened)
+                raise ConnectionError(
+                    f"AMS Net Id changed to {self.ams_net_id} while connecting to {net_id}")
             if (self._connection is not None and not self._transport_lost
                     and self._published_net_id == net_id):
                 # Another connect() to the same PLC got here first (a worker the

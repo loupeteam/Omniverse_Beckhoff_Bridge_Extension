@@ -149,11 +149,13 @@ class Runtime:
 
     @options.setter
     def options(self, value):
-        self.ams_net_id = value.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, self.ams_net_id)
+        # _option: a prim attribute with no value arrives as None and must not
+        # replace a good setting (see __init__).
+        self.ams_net_id = _option(value, ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, self.ams_net_id)
         # Always assigned, as in 0.2.x: the assignment pushes the ENABLE event that
         # tells listeners the options were (re)applied.
-        self.enable_communication = value.get(
-            ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
+        self.enable_communication = _option(
+            value, ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
         )
         self.refresh_rate = _option(value, ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
         # The variables option replaces the cyclic read list, so a variable removed

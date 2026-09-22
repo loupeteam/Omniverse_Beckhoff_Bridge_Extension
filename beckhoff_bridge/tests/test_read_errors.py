@@ -367,3 +367,58 @@ def test_connect_to_another_target_replaces_the_pair(monkeypatch):
     assert d._connection.netid == "2.2.2.2.1.1" and d._connection_write.netid == "2.2.2.2.1.1"
     assert [c.closed for c in opened] == [True, True, False, False]
     assert d.is_connected()
+
+
+def test_a_late_connect_to_the_old_target_never_replaces_the_new_pair(monkeypatch):
+    """
+    Worker A is inside connect() to X; the runtime gives up on it, the address
+    is changed to Y, worker B connects to Y. A's connect() then completes.
+    """
+    import pyads
+
+    opened = []
+
+    class FakePyadsConnection:
+        def __init__(self, netid, port):
+            opened.append(self)
+            self.netid = netid
+            self.closed = False
+            self.is_open = True
+
+        def open(self):
+            pass
+
+        def close(self):
+            self.closed = True
+
+        def set_timeout(self, ms):
+            pass
+
+        def read_state(self):
+            return (5, 0)
+
+    monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
+    d = AdsDriver("X")
+
+    # A's connect(), interrupted right before publishing
+    original_lock = d._publish_lock
+
+    class Interrupt:
+        def __enter__(self):
+            # ...during which the address changes and B connects to Y
+            d._publish_lock = original_lock
+            d.ams_net_id = "Y"
+            d.disconnect()
+            d.connect()
+            return original_lock.__enter__()
+
+        def __exit__(self, *a):
+            return original_lock.__exit__(*a)
+
+    d._publish_lock = Interrupt()
+    with pytest.raises(ConnectionError):
+        d.connect("X") if False else AdsDriver.connect(d)  # A finishes, with net_id X captured
+    assert d._connection.netid == "Y" and d._connection_write.netid == "Y"
+    assert d.is_connected()
+    x_pairs = [c for c in opened if c.netid == "X"]
+    assert x_pairs and all(c.closed for c in x_pairs)
