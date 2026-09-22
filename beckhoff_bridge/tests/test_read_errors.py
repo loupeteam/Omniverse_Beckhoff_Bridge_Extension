@@ -296,3 +296,40 @@ def test_transport_error_from_a_replaced_connection_is_ignored():
     with pytest.raises(pyads.ADSError):
         d.write({"GVL.a": 1})
     assert d.is_connected()
+
+
+def test_overlapping_connects_leave_one_pair_and_leak_nothing(monkeypatch):
+    """A connect() on a worker the runtime gave up on finishes after a new one."""
+    import pyads
+
+    opened = []
+
+    class FakePyadsConnection:
+        def __init__(self, netid, port):
+            opened.append(self)
+            self.closed = False
+            self.is_open = True
+
+        def open(self):
+            pass
+
+        def close(self):
+            self.closed = True
+
+        def set_timeout(self, ms):
+            pass
+
+        def read_state(self):
+            return (5, 0)
+
+    monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
+    d = AdsDriver("1.2.3.4.1.1")
+    d.connect()
+    first = (d._connection, d._connection_write)
+    d.connect()  # the late one
+    assert (d._connection, d._connection_write) == first
+    assert len(opened) == 4
+    assert [c.closed for c in opened] == [False, False, True, True]
+    d.disconnect()
+    assert all(c.closed for c in opened)
+    assert not d.is_connected()

@@ -8,6 +8,8 @@
   The ADS driver. Plain Python: nothing here may import from Omniverse or Kit.
 """
 
+import threading
+
 import pyads
 from pyads.errorcodes import ERROR_CODES
 
@@ -96,6 +98,10 @@ class AdsDriver(PlcDriver):
         self._read_struct_def = dict()
         self._connection = None
         self._connection_write = None
+        # Guards publishing and taking away the connection pair: connect() on a
+        # worker the runtime gave up on may overlap connect() or disconnect()
+        # on another thread.
+        self._publish_lock = threading.Lock()
         self._transport_lost = False
         self.last_read_errors = dict()
 
@@ -252,8 +258,18 @@ class AdsDriver(PlcDriver):
         except Exception:
             _close_all(opened)
             raise
-        self._transport_lost = False
-        self._connection, self._connection_write = opened
+        with self._publish_lock:
+            if self._connection is not None and not self._transport_lost:
+                # Another connect() got here first (a worker the runtime gave up
+                # on, still inside connect()). One working pair is enough; keep
+                # the one in use and close ours.
+                _close_all(opened)
+                return
+            # Nothing published, or a pair marked lost: ours replaces it.
+            stale = (self._connection, self._connection_write)
+            self._transport_lost = False
+            self._connection, self._connection_write = opened
+        _close_all(stale)
 
     def disconnect(self):
         """
@@ -264,9 +280,10 @@ class AdsDriver(PlcDriver):
         # Take the connections away first, then close them, so a read or write
         # on another thread sees None (and fails cleanly) rather than a port
         # that is being closed under it.
-        connections = (self._connection, self._connection_write)
-        self._connection = None
-        self._connection_write = None
+        with self._publish_lock:
+            connections = (self._connection, self._connection_write)
+            self._connection = None
+            self._connection_write = None
         _close_all(connections)
 
     def is_connected(self) -> bool:
