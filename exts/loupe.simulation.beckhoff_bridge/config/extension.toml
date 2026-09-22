@@ -32,6 +32,19 @@ icon = "data/icon.png"
 requirements = ['pyads']
 use_online_index = true
 
+# The polling runtime and the ADS driver are plain-Python packages with no Kit
+# imports (see docs/ARCHITECTURE_PLAN.md): `plc_bridge`, the vendor-neutral runtime
+# and driver contract, in the Omni-Utils submodule, and `beckhoff_bridge`, the ADS
+# driver, at the repo root. Load both from the repo so working on them needs no
+# install step. plc_bridge first: beckhoff_bridge imports it.
+[[python.module]]
+name = "plc_bridge"
+path = "loupe/simulation/common/plc_bridge/src"
+
+[[python.module]]
+name = "beckhoff_bridge"
+path = "../../beckhoff_bridge/src"
+
 [[python.module]]
 name = "loupe.simulation.beckhoff_bridge"
 public = true

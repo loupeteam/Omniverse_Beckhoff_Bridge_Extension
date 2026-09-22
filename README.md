@@ -12,6 +12,8 @@ This is an extension that connects Beckhoff PLCs into the Omniverse ecosystem. I
 
 Detailed documentation can be found in the extension readme file [here](exts/loupe.simulation.beckhoff_bridge/docs/README.md).
 
+The ADS driver itself is the plain-Python [`beckhoff_bridge`](beckhoff_bridge/README.md) package and can be used without Omniverse. The direction for the next major version is laid out in [docs/ARCHITECTURE_PLAN.md](docs/ARCHITECTURE_PLAN.md).
+
 # Upgrading from 0.1.x
 
 Version 0.2.0 moves the PLC connection into the USD stage and supports several PLCs. Existing scripts keep working, but the connection has to be set up once as a prim. See the [migration guide](exts/loupe.simulation.beckhoff_bridge/docs/MIGRATION.md).
@@ -21,6 +23,7 @@ Version 0.2.0 moves the PLC connection into the USD stage and supports several P
 This software contains source code provided by NVIDIA Corporation. This code is subject to the terms of the [NVIDIA Omniverse License Agreement](https://docs.omniverse.nvidia.com/isaacsim/latest/common/NVIDIA_Omniverse_License_Agreement.html). Files are licensed as follows:
 
 ### Files created entirely by Loupe ([MIT License](LICENSE)):
+* everything under `beckhoff_bridge/` (the ADS driver as a plain Python package)
 * `Communication.py`
 * `Runtime.py`
 * `BeckhoffBridge.py`
