@@ -54,6 +54,16 @@ def parse_flat_plc_var_to_dict(plc_var_dict: dict, plc_var: str, value) -> dict:
     return nest_symbol(plc_var_dict, plc_var, value, AdsDriver.symbol_separators)
 
 
+def _close_all(connections):
+    for connection in connections:
+        if connection is None:
+            continue
+        try:
+            connection.close()
+        except Exception:  # noqa
+            pass
+
+
 class AdsDriver(PlcDriver):
     """
     An ADS client for one PLC, implementing the plc_bridge driver contract
@@ -227,15 +237,23 @@ class AdsDriver(PlcDriver):
         if ams_net_id is not None:
             self.ams_net_id = ams_net_id
 
+        # Build both connections in locals and publish them together at the
+        # end: a disconnect() from another thread while this runs (the runtime
+        # gave up waiting for us) then finds either nothing or a complete pair,
+        # never a half-built one.
+        opened = []
+        try:
+            for _ in range(2):
+                connection = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
+                connection.open()
+                opened.append(connection)
+                connection.set_timeout(ADS_TIMEOUT_MS)
+            adsState, deviceState = opened[0].read_state()
+        except Exception:
+            _close_all(opened)
+            raise
         self._transport_lost = False
-        self._connection = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
-        self._connection.open()
-        self._connection.set_timeout(ADS_TIMEOUT_MS)
-        adsState, deviceState = self._connection.read_state()
-
-        self._connection_write = pyads.Connection(self.ams_net_id, pyads.PORT_TC3PLC1)
-        self._connection_write.open()
-        self._connection_write.set_timeout(ADS_TIMEOUT_MS)
+        self._connection, self._connection_write = opened
 
     def disconnect(self):
         """
@@ -243,15 +261,13 @@ class AdsDriver(PlcDriver):
         connection. Safe to call when not connected.
 
         """
-        for connection in (self._connection, self._connection_write):
-            if connection is None:
-                continue
-            try:
-                connection.close()
-            except Exception:  # noqa
-                pass
+        # Take the connections away first, then close them, so a read or write
+        # on another thread sees None (and fails cleanly) rather than a port
+        # that is being closed under it.
+        connections = (self._connection, self._connection_write)
         self._connection = None
         self._connection_write = None
+        _close_all(connections)
 
     def is_connected(self) -> bool:
         """

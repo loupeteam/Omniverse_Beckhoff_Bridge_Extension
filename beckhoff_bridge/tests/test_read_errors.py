@@ -180,12 +180,17 @@ def test_transport_error_marks_the_link_lost_until_reconnect(monkeypatch):
 
     class FakePyadsConnection:
         def __init__(self, netid, port):
-            opened.append(netid)
+            opened.append(self)
+            self.netid = netid
             self.is_open = True
             self.timeout = None
+            self.closed = False
 
         def open(self):
             pass
+
+        def close(self):
+            self.closed = True
 
         def set_timeout(self, ms):
             self.timeout = ms
@@ -196,8 +201,54 @@ def test_transport_error_marks_the_link_lost_until_reconnect(monkeypatch):
     monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
     d.connect()
     assert d.is_connected()
-    assert opened == ["1.2.3.4.1.1"] * 2
+    assert [c.netid for c in opened] == ["1.2.3.4.1.1"] * 2
     assert d._connection.timeout == 1000 and d._connection_write.timeout == 1000
+
+
+def test_connect_publishes_both_connections_at_once_and_cleans_up_on_failure(monkeypatch):
+    import pyads
+
+    opened = []
+
+    class FakePyadsConnection:
+        def __init__(self, netid, port):
+            opened.append(self)
+            self.closed = False
+            self.is_open = True
+
+        def open(self):
+            pass
+
+        def close(self):
+            self.closed = True
+
+        def set_timeout(self, ms):
+            pass
+
+        def read_state(self):
+            raise pyads.ADSError(err_code=6)
+
+    monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
+    d = AdsDriver("1.2.3.4.1.1")
+    with pytest.raises(pyads.ADSError):
+        d.connect()
+    # nothing half-built is left behind, and what was opened is closed again
+    assert d._connection is None and d._connection_write is None
+    assert len(opened) == 2 and all(c.closed for c in opened)
+    assert not d.is_connected()
+
+
+def test_disconnect_takes_the_connections_away_before_closing():
+    order = []
+
+    class Conn:
+        def close(self):
+            order.append(("closed", d._connection, d._connection_write))
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection, d._connection_write = Conn(), Conn()
+    d.disconnect()
+    assert order == [("closed", None, None)] * 2
 
 
 def test_request_errors_do_not_mark_the_link_lost():
