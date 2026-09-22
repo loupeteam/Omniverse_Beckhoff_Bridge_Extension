@@ -15,6 +15,8 @@ from plc_bridge import PlcDriver, ReadResult, nest_symbol
 
 # ADS error code for "symbol not found"
 _ADS_SYMBOL_NOT_FOUND = 1808
+# What pyads' sum write reports for a symbol that was written
+_ADS_NO_ERROR = ERROR_CODES[0]
 
 # pyads.Connection.read_list_by_name does not raise when one symbol of a sum read
 # fails: it puts the ADS error text (e.g. "symbol not found") in that symbol's slot.
@@ -139,12 +141,17 @@ class AdsDriver(PlcDriver):
                 result.values[name] = value
         return result
 
-    def write(self, values):
+    def write(self, values) -> dict:
         """
         Write flat symbol -> value in one ADS sum write, e.g.
         {'MAIN.b_Execute': False, 'MAIN.r32_TestReal': 54.321}
+
+        Returns:
+            symbol -> ADS error text for each symbol the PLC rejected; empty when
+            all succeeded. pyads reports "no error" per symbol on success.
         """
-        self._connection_write.write_list_by_name(dict(values))
+        results = self._connection_write.write_list_by_name(dict(values)) or {}
+        return {name: text for name, text in results.items() if text != _ADS_NO_ERROR}
 
     def write_data(self, data: dict):
         """0.2.x name of write."""

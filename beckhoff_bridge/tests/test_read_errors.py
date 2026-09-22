@@ -125,12 +125,23 @@ def test_write_goes_to_the_write_connection():
     class Conn:
         def write_list_by_name(self, data):
             written.append(data)
+            return {name: "no error" for name in data}
 
     d = AdsDriver("1.2.3.4.1.1")
     d._connection_write = Conn()
-    d.write({"GVL.a": 1})
+    assert d.write({"GVL.a": 1}) == {}
     d.write_data({"GVL.b": 2})
     assert written == [{"GVL.a": 1}, {"GVL.b": 2}]
+
+
+def test_write_reports_the_symbols_the_plc_rejected():
+    class Conn:
+        def write_list_by_name(self, data):
+            return {"GVL.a": "no error", "GVL.b": "symbol not found"}
+
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection_write = Conn()
+    assert d.write({"GVL.a": 1, "GVL.b": 2}) == {"GVL.b": "symbol not found"}
 
 
 def test_runtime_drives_the_ads_driver(driver):
