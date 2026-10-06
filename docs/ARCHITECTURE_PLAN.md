@@ -1,7 +1,8 @@
 # Architecture plan: vendor-neutral PLC bridge
 
 Status: **in progress on branches, nothing merged.** Written 2026-09-11 after the
-0.2.1 release. It records the direction agreed in discussion.
+0.2.1 release; decisions and review added 2026-10-06. It records the direction
+agreed in discussion.
 
 | Piece | State |
 |---|---|
@@ -180,17 +181,104 @@ with each `read`; `read` and `write` may be called from two threads at once and
 the driver makes that safe (ADS uses two connections; a single websocket would
 use a lock).
 
+## Decisions (2026-10-06)
+
+Answers to the three questions the architecture review asked before the next
+step.
+
+**1. Who consumes PLC data.** Python callbacks, mostly. Pull per tick is not
+ruled out and is the likely optimisation for a slow app: at 15 fps with a 20 ms
+PLC period a callback consumer handles three samples per frame for nothing. So:
+
+- `PlcRuntime` keeps worker-thread callbacks (every sample, for anyone who
+  needs every packet) and gains `latest()` (the newest sample, for pull).
+- The framework extension offers a per-frame, main-thread callback that
+  delivers the newest sample once per app update. This is the documented
+  default for Kit code. It drops intermediate samples; edge detection on short
+  pulses uses the worker callback or the sample's sequence number.
+- OmniGraph nodes and the mirror are decided later, once a project needs
+  no-code access at all.
+
+**2. Vendor-named surfaces are a one-release alias**, like the `Manager()`
+deprecation: bus events `loupe.simulation.beckhoff_bridge.*`, prim attributes
+`beckhoff_bridge:*`, and the import of `Manager` / `get_system` from the vendor
+module. 0.3 emits and accepts both neutral and vendor names and warns on the
+old; 0.4 keeps the old behind a setting, default off; 0.5 removes them. The
+neutral names must exist in 0.3 because the B&R driver cannot ship against
+`beckhoff_bridge:*` attributes.
+
+**3. Distribution is the public Omniverse registry, and git clone stays
+valid.** Loupe may host a registry later, likely for private packages and
+betas; nothing depends on it. Consequences:
+
+- The libraries go to PyPI (`plc-bridge`, `beckhoff-bridge`, later
+  `br-bridge`) and the extension manifests list them as pip requirements, as
+  they list pyads today. The relative `[[python.module]] path` entries are
+  development-only and go away.
+- The framework extension owns the exact `plc-bridge` pin; vendor extensions
+  pin only their own library. Kit installs each extension's pip requirements
+  into one site-packages and does not resolve conflicts, so one owner.
+- For a git clone, a bootstrap script links the local library sources into the
+  extension folder. To verify first: whether Kit's pip installer skips a
+  requirement that is already importable, so the dev link and the pip install
+  do not fight.
+
+## Architecture review (2026-10-06)
+
+Points accepted from the review, in the order they will be done. The order is
+changed from the original plan: the libraries are published and the B&R driver
+is written before the framework extension, so the registry API, option schema,
+bus namespace and sample type are designed against two vendors, not one.
+
+1. **Publish `plc_bridge`** as its own package (own repo or a library monorepo
+   with the vendor drivers), so the B&R library needs no submodule and
+   `pip install beckhoff-bridge` works outside Kit.
+2. **Write `br_bridge`** to the contract, plain Python, against the existing
+   OMJSON websocket driver. Fold what it teaches into the contract while
+   nothing pins it:
+   - one worker per PLC (write then read each period, wake on `queue_write`)
+     instead of separate read and write threads: most of the runtime's
+     lifecycle machinery and the two ADS connections exist only for the
+     second thread, and a single websocket has to serialise anyway;
+   - a sample object (`seq`, monotonic time, flat values, errors) as the
+     primary data event, with the nested dict derived from it;
+   - a structured problem event instead of prose status, the text derived;
+   - write acknowledgement (a handle or a per-symbol write-result event);
+   - an optional `describe(symbols)` for type info, used by the mirror when
+     present; a seam for push subscriptions, not built;
+   - struct reads either as a read-spec in the contract or dropped;
+   - "in one call" rather than "in one request": drivers may batch.
+3. **Framework extension** (`loupe.simulation.bridge`): driver registry (driver
+   class, option schema, defaults, optional settings panel); neutral prim
+   schema `bridge:driver`, `bridge:Enable`, `bridge:RefreshRate`,
+   `bridge:Variables` (a string array), `bridge:MirrorToUsd`, with vendor
+   keys in a vendor namespace (`beckhoff:AmsNetId`, `br:Host`); PLC prims
+   identified by a marker, `/PLC/<name>` a convention; neutral bus namespace
+   with the bus as one listener among others; `latest()` and the per-frame
+   callback; the mirror as a registered component with a watch list; an
+   app-level setting so a committed stage with Enable true cannot connect to
+   hardware by surprise; a `secret` option kind that references a setting or
+   environment variable and is never stored on a prim.
+4. **Vendor extensions** shrink to manifest plus driver registration. Mirror
+   default flips to off one release later.
+
+Not carried into the framework: `Runtime_Base` (dies when the B&R extension
+moves), the no-name `Manager()` shim, main-thread delivery inside `plc_bridge`
+(it stays Kit-side).
+
+Kept, per the review: the contract below Kit with no dependencies; errors as
+data, never as values; synchronous, bounded, daemon threads with a bounded
+`stop()`; flat symbol names as the canonical identity; one parser with
+per-driver separators; the session-layer mirror never dirtying the stage;
+prim-based multi-PLC config that works headless; the thin adapter exposing the
+library object; the lifecycle tests as external guarantees.
+
 ## Open questions
 
-- Struct definitions. pyads can read a whole struct with a `structure_def`; that
-  stays an `AdsDriver` extra (`add_read(name, structure_def)`) and is not in the
-  contract. Revisit if B&R needs an equivalent.
 - Whether the framework extension should also carry the vendor-neutral parts of
   the UI (connection status, variable list) and let vendors add a settings panel.
-- Whether vendor libraries publish to PyPI or stay in-repo and are added to the
-  Python path by the vendor extension manifest. In-repo is simpler to start.
-- Where the 0.1.x legacy shim (`Manager()` without a name) dies: it should not
-  survive into the framework.
+- Whether any customer stage or script outside Loupe depends on the vendor-named
+  surfaces. If one does, decision 2 becomes "emit both for longer".
 
 ## Related
 
