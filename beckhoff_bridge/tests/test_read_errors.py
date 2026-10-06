@@ -119,7 +119,7 @@ def test_symbol_not_found_for_the_whole_read_names_the_symbols():
     assert "GVL.a" in str(info.value) and "GVL.b" in str(info.value)
 
 
-def test_write_goes_to_the_write_connection():
+def test_write_goes_to_the_connection():
     written = []
 
     class Conn:
@@ -128,7 +128,7 @@ def test_write_goes_to_the_write_connection():
             return {name: "no error" for name in data}
 
     d = AdsDriver("1.2.3.4.1.1")
-    d._connection_write = Conn()
+    d._connection = Conn()
     assert d.write({"GVL.a": 1}) == {}
     d.write_data({"GVL.b": 2})
     assert written == [{"GVL.a": 1}, {"GVL.b": 2}]
@@ -140,7 +140,7 @@ def test_write_reports_the_symbols_the_plc_rejected():
             return {"GVL.a": "no error", "GVL.b": "symbol not found"}
 
     d = AdsDriver("1.2.3.4.1.1")
-    d._connection_write = Conn()
+    d._connection = Conn()
     assert d.write({"GVL.a": 1, "GVL.b": 2}) == {"GVL.b": "symbol not found"}
 
 
@@ -201,11 +201,11 @@ def test_transport_error_marks_the_link_lost_until_reconnect(monkeypatch):
     monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
     d.connect()
     assert d.is_connected()
-    assert [c.netid for c in opened] == ["1.2.3.4.1.1"] * 2
-    assert d._connection.timeout == 1000 and d._connection_write.timeout == 1000
+    assert [c.netid for c in opened] == ["1.2.3.4.1.1"]
+    assert d._connection.timeout == 1000
 
 
-def test_connect_publishes_both_connections_at_once_and_cleans_up_on_failure(monkeypatch):
+def test_connect_publishes_at_the_end_and_cleans_up_on_failure(monkeypatch):
     import pyads
 
     opened = []
@@ -233,22 +233,22 @@ def test_connect_publishes_both_connections_at_once_and_cleans_up_on_failure(mon
     with pytest.raises(pyads.ADSError):
         d.connect()
     # nothing half-built is left behind, and what was opened is closed again
-    assert d._connection is None and d._connection_write is None
-    assert len(opened) == 2 and all(c.closed for c in opened)
+    assert d._connection is None
+    assert len(opened) == 1 and all(c.closed for c in opened)
     assert not d.is_connected()
 
 
-def test_disconnect_takes_the_connections_away_before_closing():
+def test_disconnect_takes_the_connection_away_before_closing():
     order = []
 
     class Conn:
         def close(self):
-            order.append(("closed", d._connection, d._connection_write))
+            order.append(("closed", d._connection))
 
     d = AdsDriver("1.2.3.4.1.1")
-    d._connection, d._connection_write = Conn(), Conn()
+    d._connection = Conn()
     d.disconnect()
-    assert order == [("closed", None, None)] * 2
+    assert order == [("closed", None)]
 
 
 def test_request_errors_do_not_mark_the_link_lost():
@@ -282,14 +282,13 @@ def test_transport_error_from_a_replaced_connection_is_ignored():
 
     d = AdsDriver("1.2.3.4.1.1")
     stale = Stale()
-    d._connection_write = stale
-    d._connection = Fresh()
+    d._connection = stale
 
     # the call goes out on the stale connection, then the driver is reconnected
     original = stale.write_list_by_name
 
     def write_then_reconnect(data):
-        d._connection_write = Fresh()
+        d._connection = Fresh()
         return original(data)
 
     stale.write_list_by_name = write_then_reconnect
@@ -325,11 +324,11 @@ def test_overlapping_connects_leave_one_pair_and_leak_nothing(monkeypatch):
     monkeypatch.setattr(pyads, "Connection", FakePyadsConnection)
     d = AdsDriver("1.2.3.4.1.1")
     d.connect()
-    first = (d._connection, d._connection_write)
+    first = d._connection
     d.connect()  # the late one
-    assert (d._connection, d._connection_write) == first
-    assert len(opened) == 4
-    assert [c.closed for c in opened] == [False, False, True, True]
+    assert d._connection is first
+    assert len(opened) == 2
+    assert [c.closed for c in opened] == [False, True]
     d.disconnect()
     assert all(c.closed for c in opened)
     assert not d.is_connected()
@@ -364,8 +363,8 @@ def test_connect_to_another_target_replaces_the_pair(monkeypatch):
     d.connect()
     d.connect("2.2.2.2.1.1")
     assert d.ams_net_id == "2.2.2.2.1.1"
-    assert d._connection.netid == "2.2.2.2.1.1" and d._connection_write.netid == "2.2.2.2.1.1"
-    assert [c.closed for c in opened] == [True, True, False, False]
+    assert d._connection.netid == "2.2.2.2.1.1"
+    assert [c.closed for c in opened] == [True, False]
     assert d.is_connected()
 
 
@@ -418,7 +417,7 @@ def test_a_late_connect_to_the_old_target_never_replaces_the_new_pair(monkeypatc
     d._publish_lock = Interrupt()
     with pytest.raises(ConnectionError):
         d.connect("X") if False else AdsDriver.connect(d)  # A finishes, with net_id X captured
-    assert d._connection.netid == "Y" and d._connection_write.netid == "Y"
+    assert d._connection.netid == "Y"
     assert d.is_connected()
     x_pairs = [c for c in opened if c.netid == "X"]
     assert x_pairs and all(c.closed for c in x_pairs)
