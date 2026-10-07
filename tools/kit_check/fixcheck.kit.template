@@ -1,17 +1,19 @@
 [package]
-title = "Moonlight Rig"
+title = "Beckhoff bridge fix check"
 version = "0.1.0"
-description = "Animatronic head rig: viewport, PhysX, and the Moonlight slider panel."
+description = "Headless app that loads the Beckhoff bridge for tools/kit_check/kit_check.py."
 keywords = ["experience", "app", "usd"]
 template_name = "omni.usd_composer"
 
-# Built against Kit SDK 108.1.0, whose RTX renderer works on driver 616.56.
-# Isaac Sim 5.1 pins Kit 107.3.x, whose rtx.scenedb.plugin.dll faults with an access
-# violation on this driver -- which is why the rig is hosted here instead.
+# run.sh / run.ps1 generate the .kit from this template: ${FIXCHECK_EXTS} becomes
+# the extension folder under test and ${FIXCHECK_KIT_ROOT} the kit-app-template
+# build (the folder holding kit/kit.exe). Kit resolves ${app} to the generated
+# file's folder, which is a temp dir, so the build's folders are named in full.
 #
-# Drop this in your kit-app-template at source/apps/moonlight_composer.kit, then
-# `repo build`. The version-lock block the template generates is deliberately absent;
-# the build writes it.
+# The dependency list is the kit-app-template USD Composer app with the project
+# extensions removed: everything the bridge touches (omni.usd, omni.timeline,
+# the menu utils, the stage and property windows the mirror is inspected with)
+# resolves from the build's extscache.
 
 [dependencies]
 # --- shell ---
@@ -21,7 +23,7 @@ template_name = "omni.usd_composer"
 "omni.kit.window.status_bar" = {}
 "omni.kit.window.console" = {}
 "omni.kit.window.extensions" = {}
-"omni.kit.window.script_editor" = {}      # for tools/omniverse_smoketest.py
+"omni.kit.window.script_editor" = {}
 
 # --- menus ---
 "omni.kit.menu.utils" = {}
@@ -49,62 +51,43 @@ template_name = "omni.usd_composer"
 "omni.kit.selection" = {}
 "omni.kit.context_menu" = {}
 
-# --- physics: what wolf_head_physics.usda needs ---
+# --- physics ---
 "omni.usdphysics" = {}
 "omni.physx" = {}
 "omni.physx.stageupdate" = {}
-# The Beckhoff bridge calls omni.timeline.get_timeline_interface() in its on_startup but
-# does not declare it. Undeclared, the interface is not up yet and the extension throws
-# "Failed to acquire interface: omni::timeline::ITimeline" -- while still reporting
-# itself as enabled. Naming it here makes Kit load it first.
+# The bridge declares omni.timeline itself; naming it here as well keeps the
+# load order explicit for an app that pulls the bridge in through --enable.
 "omni.timeline" = {}
 
-# --- the rig panel itself ---
-"moonlight.rig.control" = {}
-
-# --- the PLC link (vendored under ext-vendor/, see plc/README.md) ---
+# --- the extension under test ---
 # Declared rather than passed with --enable so Kit resolves the load order itself.
 "loupe.simulation.beckhoff_bridge" = {}
 
 [settings.app]
-name = "Moonlight Rig"
+name = "Beckhoff bridge fix check"
 content.emptyStageOnStart = false
 fastShutdown = true
-
-# Off on purpose. The slider panel writes USD attributes directly; with the Fabric scene
-# delegate the viewport reads from Fabric instead, and edits can fail to show. Turn it
-# back on once you have confirmed the sliders move geometry.
 useFabricSceneDelegate = false
 
 [settings.app.window]
-title = "Moonlight Rig"
+title = "Beckhoff bridge fix check"
 width = 1920
 height = 1080
 
 [settings.app.extensions]
 registryEnabled = true
 
-# The bridge is configured by the *stage*, not from here. A connection is a prim at
-# /PLC/<name> carrying beckhoff_bridge:AmsNetId / Enable / RefreshRate / Variables, and
-# tools/build_usd.py generates it from rig.json -- so the address and the rate live with
-# the rig they belong to and a fork changes them in the file it already edits.
-#
-# Enable ships false there: opening the rig should not make the machine start talking to
-# a PLC. This one setting survives as the launch flag (`python make.py app plc`), and
-# moonlight.rig.control carries it onto the prim at startup.
+# The bridge is configured by the stage: a prim at /PLC/<name> carrying
+# beckhoff_bridge:AmsNetId / Enable / RefreshRate / Variables. kit_check.py
+# enables communication itself, so the stage ships Enable = false.
 [settings.persistent."loupe.simulation.beckhoff_bridge"]
 ENABLE_COMMUNICATION = false
 
 [settings.app.exts.folders]
-# D:/prj/Sandboxed/Moonlight is replaced with this checkout's path by tools/stage_kit.py, which is what
-# copies this file into kit-app-template for the build. It cannot be a path relative to
-# ${app}: Kit resolves that to source/apps during precache and to _build/.../release/apps
-# at runtime, so one relative path always breaks the other -- and breaking precache is a
-# build failure, since that is where the version lock resolves dependencies.
 '++' = [
-    "${app}/../exts",
-    "${app}/../extscache",
-    "D:/prj/Sandboxed/Moonlight/ext",
+    "${FIXCHECK_KIT_ROOT}/exts",
+    "${FIXCHECK_KIT_ROOT}/extscache",
+    "${FIXCHECK_KIT_ROOT}/apps",
     "${FIXCHECK_EXTS}",
 ]
 

@@ -58,7 +58,10 @@ The tests use a fake connection and do not need a PLC or the TwinCAT router.
 
 ## Development in the extension repo
 
-The extension loads this package and `plc_bridge` straight from the repo (see
-the `[[python.module]]` entries in the extension's `config/extension.toml`), so
-no install step is needed when working on them together. `plc_bridge` is not on
-PyPI yet, hence the path install above.
+The extension declares this package and `plc_bridge` as pip requirements. From
+a git clone, `python tools/dev_link.py <kit build root>` installs both checkouts
+editable into Kit's Python so edits here are used directly; for a packaged
+extension, `python tools/build_wheels.py` bundles the wheels. See the root
+README. `plc_bridge` is not on PyPI yet, hence the path install above.
+`.github/workflows/beckhoff-bridge.yml` runs these tests on Python 3.10 and
+3.12 and builds the wheel.

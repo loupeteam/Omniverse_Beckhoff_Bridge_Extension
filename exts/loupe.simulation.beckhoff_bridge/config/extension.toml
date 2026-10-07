@@ -29,21 +29,26 @@ icon = "data/icon.png"
 "omni.kit.menu.utils" = {}
 
 [python.pipapi]
-requirements = ['pyads']
+# The driver stack is three pip packages, installed by Kit before the extension
+# starts: pyads (the ADS transport), plc-bridge (the vendor-neutral runtime and
+# driver contract, from Omni-Utils) and beckhoff-bridge (the ADS driver,
+# beckhoff_bridge/ at this repo's root). Neither Loupe package imports Kit.
+requirements = ["pyads", "plc-bridge>=0.3.0rc1,<0.4", "beckhoff-bridge>=0.3.0rc1,<0.4"]
+# What to import to decide whether a requirement is already satisfied. pipapi
+# tries this import first and calls pip only when it fails, so a checkout
+# installed into Kit's Python by tools/dev_link.py takes precedence over the
+# wheels below. Without this list the check imports the requirement string
+# itself, which never succeeds. A submodule rather than the package: Kit has
+# the working directory on sys.path, and from the repo root the bare
+# beckhoff_bridge/ folder imports as an empty namespace package, which would
+# pass the check and skip the install. See the root README, "Working from a clone".
+modules = ["pyads", "plc_bridge.runtime", "beckhoff_bridge.driver"]
+# Until plc-bridge and beckhoff-bridge are on PyPI their wheels ship in wheels/
+# in the extension folder (the path is relative to it); tools/build_wheels.py
+# fills it from the local checkouts. pip tries the archive first with
+# --no-index, then the online index.
+archiveDirs = ["wheels"]
 use_online_index = true
-
-# The polling runtime and the ADS driver are plain-Python packages with no Kit
-# imports (see docs/ARCHITECTURE_PLAN.md): `plc_bridge`, the vendor-neutral runtime
-# and driver contract, in the Omni-Utils submodule, and `beckhoff_bridge`, the ADS
-# driver, at the repo root. Load both from the repo so working on them needs no
-# install step. plc_bridge first: beckhoff_bridge imports it.
-[[python.module]]
-name = "plc_bridge"
-path = "loupe/simulation/common/plc_bridge/src"
-
-[[python.module]]
-name = "beckhoff_bridge"
-path = "../../beckhoff_bridge/src"
 
 [[python.module]]
 name = "loupe.simulation.beckhoff_bridge"
