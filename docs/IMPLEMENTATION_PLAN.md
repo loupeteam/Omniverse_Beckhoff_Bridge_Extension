@@ -64,6 +64,11 @@ headless Kit check passes live on contract v2 at 50 Hz.
 
 ## Phase 1: libraries stand on their own (OU, BK, BR; one sub-agent, 1 to 2 days)
 
+**Done 2026-10-07**: OU #12, BK #21, BR #17 (drafts against `rc/0.3.0`). pytest
+104 / 47 / 13; BK extension verified in Kit from both the wheel layout and the
+clone layout, inject and live. Merge OU #12 before BK #21 / BR #17 or their CI
+cannot resolve `plc-bridge>=0.3.0rc1`.
+
 Goal: `pip install plc-bridge beckhoff-bridge br-bridge` works, with or
 without PyPI, and the Kit extensions stop reaching outside their folders.
 
@@ -92,6 +97,11 @@ Beckhoff extension load them as pip requirements; move the harness into
 ---
 
 ## Phase 2: B&R extension on the shared runtime (BR; one sub-agent, 1 to 2 days)
+
+**Done 2026-10-07**: BR #16 (draft against `rc/0.3.0`, stacked on #15). pytest 33;
+Kit inject and live OK at 50 Hz, **live against the mock OMJSON server**: the
+repo's AS project is 4.10 and only AS6 is installed. Real ARsim coverage is an
+open item for Phase 5 (convert the project, or point at an AS6 project / PLC).
 
 Goal: the B&R Kit extension does what the Beckhoff one does today: `/PLC`
 prims, a `Runtime` adapter over `PlcRuntime(BrDriver)`, the bus for
@@ -126,13 +136,13 @@ provide.
 
 | # | Task |
 |---|---|
-| 3.1 | New extension `exts/loupe.simulation.bridge/` in OU. `extension.toml`: depends on `omni.usd`, `omni.kit.menu.utils`, `omni.timeline`; pip requirement `plc-bridge==<exact>`. Move `System.py`, `SystemUI.py`, `UsdManager.py`, `BridgeManager.py` under `loupe/simulation/bridge/`. `RuntimeBase.py` is not moved; it dies with the submodules in Phase 4. |
+| 3.1 | New extension `exts/loupe.simulation.bridge/` in OU. Mind the Phase 1 finding: Kit puts its working directory on `sys.path`, so a bare `plc_bridge/` folder at the OU root imports as an empty namespace package when Kit is launched from there; the Beckhoff extension guards against it in `__init__.py` and the launchers run Kit from a temp folder. Do the same. `extension.toml`: depends on `omni.usd`, `omni.kit.menu.utils`, `omni.timeline`; pip requirement `plc-bridge==<exact>`. Move `System.py`, `SystemUI.py`, `UsdManager.py`, `BridgeManager.py` under `loupe/simulation/bridge/`. `RuntimeBase.py` is not moved; it dies with the submodules in Phase 4. |
 | 3.2 | **Driver registry.** `registry.register(name, driver_class, option_schema, defaults, ui_panel=None)`; `registry.get(name)`. Option schema: list of `Option(key, kind, default, label, secret=False)` with kinds `str`, `int`, `float`, `bool`, `str_list`. A `secret` option is never written to a prim: its prim value is a reference (`env:NAME` or `setting:/path`) that the framework resolves. |
 | 3.3 | **Neutral prim schema.** `bridge:driver` (string), `bridge:Enable`, `bridge:RefreshRate`, `bridge:Variables` (`string[]`), `bridge:MirrorToUsd`, plus the driver's options under its namespace (`beckhoff:AmsNetId`, `br:Host`, `br:Port`). A PLC prim is recognised by `bridge:driver` present. Legacy rule: a prim with `beckhoff_bridge:AmsNetId` and no `bridge:driver` is treated as `driver = "beckhoff"` with its legacy attributes read, and a deprecation warning once per prim. Same for `br_bridge:*`. `/PLC/<name>` stays the documented convention; prim path is the identity. |
 | 3.4 | **Component runtime.** `Component` = `PlcRuntime(driver, name, options)` + the Kit glue: options in/out of the prim, `cleanup()`. The framework's `Runtime` adapter replaces the vendor ones. |
 | 3.5 | **Delivery.** `get_plc(name) -> PlcRuntime` and `get_system()` move here. New `on_sample_main(name, cb)`: subscribes to `on_sample`, keeps the newest, delivers once per `omni.kit.app` update on the main thread. Document that it drops intermediate samples and that `Sample.seq` detects gaps. |
 | 3.6 | **Bus as a listener.** `BusAdapter(plc, namespaces)` subscribes to the runtime events and pushes `loupe.simulation.bridge.<KIND>.<plc>`; with a setting `/exts/loupe.simulation.bridge/legacyBusNames` (default true in 0.3) it also pushes the vendor name (`loupe.simulation.beckhoff_bridge.*` or `..br_bridge.*`) and accepts requests on both. The structured `Problem` goes on the bus as `{"kind", "text", "symbols"}` under `STATUS`, with the text as the 0.2.x payload for the legacy name. |
-| 3.7 | **Mirror as a component.** `UsdManager.RuntimeUsd` becomes a registered component created when `bridge:MirrorToUsd` is true (default **true** in 0.3), reading `Sample` via `on_sample_main` instead of the bus, with an optional `bridge:MirrorSymbols` (`string[]`) watch list; empty means all. It uses `Sample.values` (flat) directly; `flatten_obj` goes away. |
+| 3.7 | **Mirror as a component.** `UsdManager.RuntimeUsd` becomes a registered component created when `bridge:MirrorToUsd` is true (default **true** in 0.3), reading `Sample` via `on_sample_main` instead of the bus, with an optional `bridge:MirrorSymbols` (`string[]`) watch list; empty means all. It uses `Sample.values` (flat) directly; `flatten_obj` goes away. Two Phase 2 findings to fix here: write-back must rebuild symbols with the driver's `symbol_separators` (today it re-derives `TestProg.lreal` for a B&R `TestProg:lreal`; the B&R adapter carries a temporary `resolve_symbol` to delete), and scalar arrays / `None`-padded arrays must mirror cleanly (today they arrive as tuples through the bus and are refused). |
 | 3.8 | **Safety setting.** `/exts/loupe.simulation.bridge/autoConnect` (default true). When false, prims with `bridge:Enable = true` are created disabled and the UI shows why. |
 | 3.9 | **UI.** `SystemUI` carries the vendor-neutral panel (component list, enable, refresh, variables, status, connection); a driver's `ui_panel` callback adds its options below. |
 | 3.10 | Tests: Kit tests for prim discovery (neutral and legacy), registry, `on_sample_main` coalescing, bus adapter emitting both names, mirror watch list. Harness run with a `bridge:driver = "beckhoff"` prim and with a legacy `beckhoff_bridge:*` prim. |
