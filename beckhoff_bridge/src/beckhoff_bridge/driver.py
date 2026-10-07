@@ -71,12 +71,11 @@ class AdsDriver(PlcDriver):
     An ADS client for one PLC, implementing the plc_bridge driver contract
     (connect / disconnect / is_connected / read / write).
 
-    It opens two ADS connections, one for reads and one for writes, so the
-    runtime's read and write threads never share one. Both carry a one-second
-    request timeout (ADS_TIMEOUT_MS) because ADS cannot abort a request in
-    flight. pyads' `is_open` only says whether we opened the port, so a
-    transport-class ADS error on a read or write marks the link lost and
-    is_connected() reports False until the next connect().
+    One ADS connection: the runtime calls read and write from one thread, in
+    turn. It carries a one-second request timeout (ADS_TIMEOUT_MS) because ADS
+    cannot abort a request in flight. pyads' `is_open` only says whether we
+    opened the port, so a transport-class ADS error on a read or write marks
+    the link lost and is_connected() reports False until the next connect().
 
     The read-list methods (add_read, set_read_names, read_data, write_data) are
     the 0.2.x API, kept for code that drives the driver without a PlcRuntime.
@@ -97,8 +96,7 @@ class AdsDriver(PlcDriver):
         self._read_names = list()
         self._read_struct_def = dict()
         self._connection = None
-        self._connection_write = None
-        # Guards publishing and taking away the connection pair: connect() on a
+        # Guards publishing and taking away the connection: connect() on a
         # worker the runtime gave up on may overlap connect() or disconnect()
         # on another thread.
         self._publish_lock = threading.Lock()
@@ -182,7 +180,7 @@ class AdsDriver(PlcDriver):
             symbol -> ADS error text for each symbol the PLC rejected; empty when
             all succeeded. pyads reports "no error" per symbol on success.
         """
-        connection = self._connection_write
+        connection = self._connection
         try:
             results = connection.write_list_by_name(dict(values)) or {}
         except pyads.ADSError as e:
@@ -198,7 +196,7 @@ class AdsDriver(PlcDriver):
         """
         if getattr(error, "err_code", None) not in _ADS_TRANSPORT_ERRORS:
             return
-        if connection is self._connection or connection is self._connection_write:
+        if connection is self._connection:
             self._transport_lost = True
 
     def write_data(self, data: dict):
@@ -245,61 +243,56 @@ class AdsDriver(PlcDriver):
         if ams_net_id is not None:
             self.ams_net_id = ams_net_id
 
-        # Build both connections in locals and publish them together at the
-        # end: a disconnect() from another thread while this runs (the runtime
-        # gave up waiting for us) then finds either nothing or a complete pair,
+        # Build the connection in a local and publish it at the end: a
+        # disconnect() from another thread while this runs (the runtime gave
+        # up waiting for us) then finds either nothing or a working connection,
         # never a half-built one.
         net_id = self.ams_net_id
-        opened = []
+        connection = pyads.Connection(net_id, pyads.PORT_TC3PLC1)
         try:
-            for _ in range(2):
-                connection = pyads.Connection(net_id, pyads.PORT_TC3PLC1)
-                connection.open()
-                opened.append(connection)
-                connection.set_timeout(ADS_TIMEOUT_MS)
-            adsState, deviceState = opened[0].read_state()
+            connection.open()
+            connection.set_timeout(ADS_TIMEOUT_MS)
+            adsState, deviceState = connection.read_state()
         except Exception:
-            _close_all(opened)
+            _close_all([connection])
             raise
         with self._publish_lock:
             if net_id != self.ams_net_id:
                 # The target changed while we were connecting (a worker the
                 # runtime gave up on, finishing after the address was edited).
-                # A pair to the old PLC must never replace one to the new.
-                _close_all(opened)
+                # A connection to the old PLC must never replace one to the new.
+                _close_all([connection])
                 raise ConnectionError(
                     f"AMS Net Id changed to {self.ams_net_id} while connecting to {net_id}")
             if (self._connection is not None and not self._transport_lost
                     and self._published_net_id == net_id):
                 # Another connect() to the same PLC got here first (a worker the
-                # runtime gave up on, still inside connect()). One working pair
-                # is enough; keep the one in use and close ours. A second
-                # connect() without a disconnect() is therefore a no-op.
-                _close_all(opened)
+                # runtime gave up on, still inside connect()). One working
+                # connection is enough; keep the one in use and close ours. A
+                # second connect() without a disconnect() is therefore a no-op.
+                _close_all([connection])
                 return
-            # Nothing published, a pair marked lost, or a pair to a different
-            # PLC: ours replaces it.
-            stale = (self._connection, self._connection_write)
+            # Nothing published, a connection marked lost, or one to a
+            # different PLC: ours replaces it.
+            stale = self._connection
             self._transport_lost = False
-            self._connection, self._connection_write = opened
+            self._connection = connection
             self._published_net_id = net_id
-        _close_all(stale)
+        _close_all([stale])
 
     def disconnect(self):
         """
-        Disconnects from the target device, closing both the read and the write
-        connection. Safe to call when not connected.
+        Disconnects from the target device. Safe to call when not connected.
 
         """
         # Take the connections away first, then close them, so a read or write
         # on another thread sees None (and fails cleanly) rather than a port
         # that is being closed under it.
         with self._publish_lock:
-            connections = (self._connection, self._connection_write)
+            connection = self._connection
             self._connection = None
-            self._connection_write = None
             self._published_net_id = None
-        _close_all(connections)
+        _close_all([connection])
 
     def is_connected(self) -> bool:
         """
