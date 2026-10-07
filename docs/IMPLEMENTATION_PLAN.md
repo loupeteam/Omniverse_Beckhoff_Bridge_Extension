@@ -132,7 +132,8 @@ of docs/IMPLEMENTATION_PLAN.md in the Beckhoff repo."
 **Built 2026-10-07**: OU #13 (draft against `rc/0.3.0`, 8 commits). 19 Kit tests;
 mixed-stage harness live (legacy Beckhoff prim on TwinCAT + neutral B&R prim on
 the mock) OK three times; `on_sample_main` on the main thread once per frame;
-write-back keeps the B&R colon. Under review before merge.
+write-back keeps the B&R colon. Two review passes (10 findings, all fixed with
+tests; 31 Kit tests); verdict mergeable. Awaiting merge.
 
 Goal: one Kit extension, `loupe.simulation.bridge`, owns everything a
 simulation touches, with vendor code behind a registry. This is the step the
