@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beckhoff-bridge"
+version = "0.3.0.dev0"
+description = "Beckhoff PLC driver over ADS (pyads), with no Omniverse dependency"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Loupe", email = "info@loupe.team" }]
+requires-python = ">=3.10"
+dependencies = ["pyads>=3.4", "plc-bridge"]
+keywords = ["Beckhoff", "ADS", "PLC", "TwinCAT"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/loupeteam/Omniverse_Beckhoff_Bridge_Extension"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

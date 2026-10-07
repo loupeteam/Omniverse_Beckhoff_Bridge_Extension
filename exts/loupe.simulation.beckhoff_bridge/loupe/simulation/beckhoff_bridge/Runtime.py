@@ -1,9 +1,24 @@
-import time
+"""
+  File: **Runtime.py**
+  Copyright (c) 2024 Loupe
+  https://loupe.team
+
+  This file is part of Omniverse_Beckhoff_Bridge_Extension, licensed under the MIT License.
+
+  The Kit side of one PLC. The polling itself is plc_bridge.PlcRuntime driving a
+  beckhoff_bridge.AdsDriver, both plain Python. This class only connects that
+  runtime to Kit: options from the PLC prim in, carb message bus events out, bus
+  read and write requests in.
+"""
+
 import logging
 
-from threading import RLock
-from .Communication import CommunicationDriver, AdsReadError
-from ..common.RuntimeBase import Runtime_Base
+import omni.kit.app
+
+from beckhoff_bridge import AdsDriver
+from plc_bridge import PlcRuntime
+
+from ..common.RuntimeBase import get_stream_name
 
 from .global_variables import (
     ATTR_BECKHOFF_BRIDGE_AMS_NET_ID,
@@ -35,54 +50,93 @@ def _option(options: dict, key: str, default):
     return default if value is None else value
 
 
-class Runtime(Runtime_Base):
+class Runtime:
     # region - Class lifecycle
     def __init__(self, name="PLC1", options=None):
         options = options or {}
+        self._name = name
 
-        self._ads_connector = CommunicationDriver(
+        self._driver = AdsDriver(
             _option(options, ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, "127.0.0.1.1.1")
         )
+        self._plc = PlcRuntime(
+            self._driver,
+            name=name,
+            refresh_ms=_option(options, ATTR_BECKHOFF_BRIDGE_REFRESH, 20),
+            enabled=_option(options, ATTR_BECKHOFF_BRIDGE_ENABLE, False),
+        )
+        self._plc.set_read_variables((options.get(ATTR_BECKHOFF_BRIDGE_READ_VARS) or "").split(","))
 
-        super().__init__(name)
+        # Runtime events -> message bus. These run on the runtime's worker threads,
+        # as the pushes always have; subscribers that touch the stage or the UI
+        # marshal to the main thread themselves (see RuntimeUsd).
+        self._plc.on_data(lambda data: self._push_event(EVENT_TYPE_DATA_READ, data=data))
+        self._plc.on_status(lambda text: self._push_event(EVENT_TYPE_STATUS, status=text))
+        self._plc.on_connection(lambda state: self._push_event(EVENT_TYPE_CONNECTION, status=state))
+        self._plc.on_enabled(
+            lambda enabled: self._push_event(EVENT_TYPE_ENABLE, status={"enabled": enabled}))
 
-        self.write_queue = dict()
-        self.write_lock = RLock()
+        # Message bus requests -> runtime
+        self._event_stream = omni.kit.app.get_app().get_message_bus_event_stream()
+        self._read_req = self._event_stream.create_subscription_to_push_by_type(
+            self._get_stream_name(EVENT_TYPE_DATA_READ_REQ), self._on_read_req_event
+        )
+        self._write_req = self._event_stream.create_subscription_to_push_by_type(
+            self._get_stream_name(EVENT_TYPE_DATA_WRITE_REQ), self._on_write_req_event
+        )
+        self._push_event(EVENT_TYPE_DATA_INIT, data={})
 
-        self._was_connected = False
-        self._is_connected = False
-        # Symbols reported as failed by the last read, so the status is pushed when
-        # the set changes rather than on every scan.
-        self._failed_symbols = frozenset()
+        self._plc.start()
 
-        self.refresh_rate = _option(options, ATTR_BECKHOFF_BRIDGE_REFRESH, 20)
-        self._enable_communication = _option(options, ATTR_BECKHOFF_BRIDGE_ENABLE, False)
+    def __del__(self):
+        self.cleanup()
 
-        variables = options.get(ATTR_BECKHOFF_BRIDGE_READ_VARS, "")
-        if variables:
-            variables = variables.split(",")
-            for name in variables:
-                self._ads_connector.add_read(name.strip())
-
-        self.start()
+    def cleanup(self):
+        """Stop polling and leave the message bus. Safe to call more than once."""
+        plc = getattr(self, "_plc", None)  # __init__ may have failed before it existed
+        if plc is not None:
+            plc.stop()
+        for attr in ("_read_req", "_write_req"):
+            subscription = getattr(self, attr, None)
+            if subscription is not None:
+                subscription.unsubscribe()
+                setattr(self, attr, None)
 
     # endregion
     # region - Properties
+    name = property(lambda self: self._name)
+    plc = property(lambda self: self._plc, doc="The plc_bridge.PlcRuntime doing the polling.")
+    driver = property(lambda self: self._driver, doc="The beckhoff_bridge.AdsDriver.")
+    is_connected = property(lambda self: self._plc.is_connected)
+    read_variables = property(lambda self: self._plc.read_variables)
+
     ams_net_id = property(
-        lambda self: self._ads_connector.ams_net_id,
+        lambda self: self._driver.ams_net_id,
         lambda self, value: self._set_ams_net_id(value),
     )
 
     def _set_ams_net_id(self, value):
-        self._ads_connector.ams_net_id = value
-        self._is_connected = False
+        if value == self._driver.ams_net_id:
+            return
+        self._driver.ams_net_id = value
+        self._plc.reconnect()
 
     enable_communication = property(
-        lambda self: self._enable_communication,
-        lambda self, value: self._set_enable_communication(value),
+        lambda self: self._plc.enabled,
+        lambda self, value: setattr(self._plc, "enabled", value),
     )
 
-    name = property(lambda self: self._name)
+    refresh_period_ms = property(
+        lambda self: self._plc.refresh_ms,
+        lambda self, value: setattr(self._plc, "refresh_ms", value),
+    )
+    # Two names for one value; the prim attribute is called RefreshRate.
+    refresh_rate = refresh_period_ms
+
+    write_sleep_time = property(
+        lambda self: self._plc.write_sleep,
+        lambda self, value: setattr(self._plc, "write_sleep", value),
+    )
 
     @property
     def options(self):
@@ -90,158 +144,60 @@ class Runtime(Runtime_Base):
             ATTR_BECKHOFF_BRIDGE_AMS_NET_ID: self.ams_net_id,
             ATTR_BECKHOFF_BRIDGE_ENABLE: self.enable_communication,
             ATTR_BECKHOFF_BRIDGE_REFRESH: self.refresh_rate,
-            ATTR_BECKHOFF_BRIDGE_READ_VARS: ",".join(self._ads_connector._read_names),
+            ATTR_BECKHOFF_BRIDGE_READ_VARS: ",".join(self._plc.read_variables),
         }
 
     @options.setter
     def options(self, value):
-        self.ams_net_id = value.get(ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, self.ams_net_id)
-        self.enable_communication = value.get(
-            ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
+        # _option: a prim attribute with no value arrives as None and must not
+        # replace a good setting (see __init__).
+        self.ams_net_id = _option(value, ATTR_BECKHOFF_BRIDGE_AMS_NET_ID, self.ams_net_id)
+        # Always assigned, as in 0.2.x: the assignment pushes the ENABLE event that
+        # tells listeners the options were (re)applied.
+        self.enable_communication = _option(
+            value, ATTR_BECKHOFF_BRIDGE_ENABLE, self.enable_communication
         )
-        self.refresh_rate = value.get(ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
+        self.refresh_rate = _option(value, ATTR_BECKHOFF_BRIDGE_REFRESH, self.refresh_rate)
         # The variables option replaces the cyclic read list, so a variable removed
         # from the prim stops being read. A missing key leaves the list alone.
         if ATTR_BECKHOFF_BRIDGE_READ_VARS in value:
             variables = value[ATTR_BECKHOFF_BRIDGE_READ_VARS] or ""
             self.set_read_variables(variables.split(","))
 
-    def _set_enable_communication(self, value):
-        self._enable_communication = value
-        self._push_event(EVENT_TYPE_ENABLE, status={"enabled": value})
-
     # endregion
+    # region - Message bus
+    def _get_stream_name(self, msg_type):
+        return get_stream_name(msg_type, self._name)
 
-    # region - Event Stream
-    def _subscribe_event_stream(self, stream):
+    def _push_event(self, event_type, data=None, status=None):
+        message = {"meta": {"name": self._name}}
+        if data:
+            message["data"] = data
+        if status:
+            message["status"] = status
+        try:
+            self._event_stream.push(
+                event_type=self._get_stream_name(event_type), payload=message)
+        except Exception as e:
+            logger.error(f"Error pushing event: {e}")
 
-        self.read_req = stream.create_subscription_to_push_by_type(
-            self._get_stream_name(EVENT_TYPE_DATA_READ_REQ), self._on_read_req_event
-        )
-        self.write_req = stream.create_subscription_to_push_by_type(
-            self._get_stream_name(EVENT_TYPE_DATA_WRITE_REQ), self._on_write_req_event
-        )
-        self._push_event(EVENT_TYPE_DATA_INIT, data={})
-
-    # endregion
-    # region - Event Handlers
     def _on_read_req_event(self, event):
-        event_data = event.payload
-        variables: list = event_data["variables"]
-        for name in variables:
-            self._ads_connector.add_read(name)
+        self._plc.add_read_variables(event.payload["variables"])
 
     def _on_write_req_event(self, event):
-        variables = event.payload["variables"]
-        for variable in variables:
+        for variable in event.payload["variables"]:
             self.queue_write(variable["name"], variable["value"])
 
     # endregion
-    # region - Worker Threads
-    def _write_data(self):
-        try:
-            if self._is_connected and self.write_queue:
-                with self.write_lock:
-                    values = self.write_queue
-                    self.write_queue = dict()
-                self._ads_connector.write_data(values)
-        except Exception as e:
-            self._push_event(EVENT_TYPE_STATUS, status=f"Error Writing: {e}")
-
-    def _read_data(self):
-
-        # Start the communication if it is not initialized
-        if self._enable_communication and not self._is_connected:
-            self._push_event(EVENT_TYPE_CONNECTION, status="Connecting")
-            try:
-                # Close anything left from a previous connection (e.g. after the
-                # AMS Net Id was changed) before opening a new one
-                self._ads_connector.disconnect()
-                self._ads_connector.connect()
-            except Exception as e:  # noqa
-                self._is_connected = False
-                self._push_event(EVENT_TYPE_STATUS, status=f"Error Connecting: {e}")
-            else:
-                self._is_connected = True
-                self._push_event(EVENT_TYPE_CONNECTION, status="Connected")
-
-        if not self._enable_communication and self._is_connected:
-            # Clear the flag first: the write thread checks it before using the
-            # write connection, which disconnect() is about to close.
-            self._is_connected = False
-            self._ads_connector.disconnect()
-
-        if not self._is_connected and self._was_connected:
-            self._push_event(EVENT_TYPE_CONNECTION, status="Disconnected")
-
-        self._was_connected = self._is_connected
-
-        if not self._is_connected or not self._enable_communication:
-            time.sleep(1)
-            return
-
-        try:
-            self._data = self._ads_connector.read_data()
-            if len(self._data) > 0:
-                # Push the data to the event stream
-                self._push_event(EVENT_TYPE_DATA_READ, data=self._data)
-            self._report_failed_symbols(self._ads_connector.last_read_errors)
-        except AdsReadError as e:
-            # Every symbol failed: the PLC has no program, or has gone away
-            self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
-            self._report_failed_symbols(e.errors)
-        except Exception as e:
-            self._push_event(EVENT_TYPE_STATUS, status=f"Error Reading: {e}")
-            # Only pyads.ADSError carries err_code; 1808 is "symbol not found"
-            if getattr(e, "err_code", None) == 1808:
-                variables = self._ads_connector._read_names
-                self._push_event(
-                    EVENT_TYPE_STATUS, status=f"Error Reading One Of: {variables}"
-                )
-
-    def _report_failed_symbols(self, errors: dict):
-        """
-        Push a status when the set of symbols the PLC rejects changes: once when
-        they start failing, once when they recover.
-        """
-        failed = frozenset(errors)
-        if failed == self._failed_symbols:
-            return
-        if failed:
-            self._push_event(
-                EVENT_TYPE_STATUS,
-                status="Error Reading: " + "; ".join(
-                    f"{name}: {text}" for name, text in sorted(errors.items())),
-            )
-        else:
-            self._push_event(EVENT_TYPE_STATUS, status="Reading OK")
-        self._failed_symbols = failed
-
-    def _read_data_ending(self):
-        if self._ads_connector:
-            self._ads_connector.disconnect()
-
-    # endregion
-
     # region - External API
     def set_read_variables(self, variables):
         """
-        Replace the cyclic read list. Blank entries are dropped and whitespace
-        (including the '\\r' a Windows multiline field leaves behind) is stripped,
-        since ADS reports a padded name as "symbol not found".
+        Replace the cyclic read list. Blank entries are dropped and whitespace is
+        stripped (see PlcRuntime.set_read_variables).
         """
-        self._ads_connector._read_names = []
-        for name in variables:
-            name = name.strip()
-            if name:
-                self._ads_connector.add_read(name)
+        self._plc.set_read_variables(variables)
 
     def queue_write(self, name, value):
-        with self.write_lock:
-            self.write_queue[name] = value
-
-    def _cleanup(self):
-        self.read_req.unsubscribe()
-        self.write_req.unsubscribe()
+        self._plc.queue_write(name, value)
 
     # endregion
