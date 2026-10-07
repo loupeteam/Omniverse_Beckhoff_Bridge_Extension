@@ -8,6 +8,7 @@
 *.exe
 *.bat
 *.sh
+!tools/kit_check/run.sh
 
 # Database files
 *.db3
@@ -216,3 +217,6 @@ fabric.properties
 
 #NVidia Omniverse
 app/
+
+# Wheels bundled into the extension by tools/build_wheels.py (registry layout)
+exts/loupe.simulation.beckhoff_bridge/wheels/

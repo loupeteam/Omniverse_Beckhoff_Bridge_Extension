@@ -1,0 +1,102 @@
+# CI for the plain-Python beckhoff_bridge package (beckhoff_bridge/).
+#
+# Every push and pull request: pytest on the oldest and newest supported Python,
+# then a wheel built and kept as a workflow artifact. A tag `beckhoff-bridge-v<version>`
+# also publishes that wheel to PyPI, but only when the PYPI_TOKEN secret exists;
+# without it the publish job reports that it skipped and the workflow stays green.
+#
+# plc-bridge is not on PyPI yet, so the tests install it from the Omni-Utils
+# repo at PLC_BRIDGE_REF. Drop that step (and the env) once it is published.
+
+name: beckhoff-bridge
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["beckhoff-bridge-v*"]
+    paths:
+      - "beckhoff_bridge/**"
+      - ".github/workflows/beckhoff-bridge.yml"
+  pull_request:
+    paths:
+      - "beckhoff_bridge/**"
+      - ".github/workflows/beckhoff-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PLC_BRIDGE_REF: rc/0.3.0
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install plc-bridge from Omni-Utils (until it is on PyPI)
+        run: python -m pip install "plc-bridge @ git+https://github.com/loupeteam/Omni-Utils.git@${PLC_BRIDGE_REF}#subdirectory=plc_bridge"
+      - name: Install
+        run: python -m pip install "./beckhoff_bridge[test]"
+      - name: Test
+        run: python -m pytest beckhoff_bridge
+
+  build:
+    name: wheel
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: |
+          python -m pip install build
+          python -m build --outdir dist beckhoff_bridge
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/beckhoff-bridge-v')
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('beckhoff_bridge/pyproject.toml','rb'))['project']['version'])")
+          tag="${GITHUB_REF_NAME#beckhoff-bridge-v}"
+          if [ "$version" != "$tag" ]; then
+            echo "tag beckhoff-bridge-v$tag does not match pyproject version $version" >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beckhoff-bridge-dist
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/beckhoff-bridge-v')
+    runs-on: ubuntu-latest
+    env:
+      # The secrets context is not available in a job-level `if`, so the job runs
+      # and its steps decide. Absent token: the job logs a notice and skips.
+      HAS_TOKEN: ${{ secrets.PYPI_TOKEN != '' }}
+    steps:
+      - name: No PYPI_TOKEN secret, skipping publish
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::PYPI_TOKEN is not set; the wheel is in the workflow artifacts only."
+      - uses: actions/download-artifact@v4
+        if: env.HAS_TOKEN == 'true'
+        with:
+          name: beckhoff-bridge-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        if: env.HAS_TOKEN == 'true'
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+          packages-dir: dist

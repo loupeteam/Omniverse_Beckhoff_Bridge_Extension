@@ -8,6 +8,7 @@ Changelog
 - ADS requests time out after 1 s instead of pyads' 5 s default, so a PLC that goes away no longer stalls a stage close; a transport-class ADS error (target not found, timeout, port disabled) marks the link lost and the bridge reports `Disconnected` and reconnects by itself.
 - Setting the AMS Net Id to the value it already has no longer drops the connection.
 - `Runtime` no longer derives from `Runtime_Base`. It gained `read_variables`, `is_connected`, `plc` and `driver`; its private `_ads_connector` is gone.
+- Packaging: the extension no longer loads `plc_bridge` and `beckhoff_bridge` through relative `[[python.module]]` paths. They are pip requirements (`pyads`, `plc-bridge>=0.3.0rc1,<0.4`, `beckhoff-bridge>=0.3.0rc1,<0.4`) that Kit installs before the extension starts. Until the packages are on PyPI, `tools/build_wheels.py` bundles their wheels in the extension's `wheels/` folder; a git clone runs `tools/dev_link.py` to use the checkouts directly. The root README records what Kit's pipapi does in each case. The headless check harness lives in `tools/kit_check/` with `run.sh` and `run.ps1` launchers. `beckhoff-bridge` is versioned `0.3.0rc1` and built by CI.
 
 [0.2.1]
 - Fix a false `Manager('PLC1'): no PLC prim ... is loaded` warning logged on every stage open. The System built the mirror's `Manager` before registering the component it was creating.
