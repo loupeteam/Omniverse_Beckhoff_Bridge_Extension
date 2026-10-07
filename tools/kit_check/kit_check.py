@@ -1,8 +1,9 @@
 """
 Headless Kit check for the Beckhoff bridge (v3, rebuilt for plc_bridge v2).
 
-Run inside Kit with --exec. Environment:
-  FIXCHECK_STAGE  stage to open (PLC prims under /PLC)
+Run inside Kit with --exec (run.sh / run.ps1 do that). Environment:
+  FIXCHECK_STAGE  stage to open (PLC prims under /PLC); default stages/mirror_test.usda
+                  next to this file; a relative path is taken from the current folder
   FIXCHECK_MODE   "" = live against the PLC in the stage, "inject" = synthetic DATA_READ
 Prints one line per check and "OK -- all fix checks passed" or "FAIL ...".
 """
@@ -18,7 +19,8 @@ import omni.kit.app
 import omni.usd
 from pxr import Sdf, Usd
 
-STAGE = os.environ.get("FIXCHECK_STAGE")
+HERE = os.path.dirname(os.path.abspath(__file__))
+STAGE = os.path.abspath(os.environ.get("FIXCHECK_STAGE") or os.path.join(HERE, "stages", "mirror_test.usda")).replace("\\", "/")
 MODE = os.environ.get("FIXCHECK_MODE", "")
 EXT = "loupe.simulation.beckhoff_bridge"
 LIVE_SEC = 5.0
