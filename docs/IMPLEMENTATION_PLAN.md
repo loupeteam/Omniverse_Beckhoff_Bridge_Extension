@@ -51,13 +51,14 @@ Nothing a sub-agent can do; everything later waits on it.
 
 | # | Task | Who |
 |---|---|---|
-| 0.1 | Create `rc/0.3.0` in BK (from `main`), OU (from `feature/usd-operations`), BR (from `main`). Retarget BK #19 and OU #10 at them and merge. Retarget BK #20 and OU #11 at `rc/0.3.0`; retarget BR #15 at `rc/0.3.0`. | Scott |
-| 0.2 | Renew the TwinCAT trial licence on the Moonlight machine (XAE: System, License), redeploy the Moonlight project (`python make.py download`), confirm with `python tools/plc_probe.py`. | Scott |
+| 0.1 | Done 2026-10-07. `rc/0.3.0` in BK, OU, BR; BK #19 and OU #10 merged there; BK #20, OU #11, BR #15 retargeted at it. | Claude |
+| 0.2 | Done 2026-10-07. The Moonlight "PLC" is this PC's own usermode runtime `UmRT_Default`; its trial must include TF5000 (NC PTP) or it stays in Config. Generated in XAE from the Moonlight solution, registered as the shared trial with the `twincat-runtime` skill (`license install`), redeployed with `tools/setup_twincat.ps1 -Download`. Expires 2026-10-15; repeat before it does. | Scott (code), Claude (install, deploy) |
 | 0.3 | Decide where `plc_bridge` lives long term: stay in OU, or its own repo `loupeteam/plc-bridge`. The plan below assumes **stays in OU** (fewest moving parts; revisit when a third consumer appears). | Scott |
 | 0.4 | PyPI: create the `loupe` org or account and give the CI a publishing token for `plc-bridge`, `beckhoff-bridge`, `br-bridge`. Until then, Phase 1 bundles wheels instead. | Scott |
 
-Acceptance: three `rc/0.3.0` branches exist with #10, #19 merged; a live
-Moonlight read works (`plc_probe.py` resolves 9 symbols).
+Acceptance (met 2026-10-07): three `rc/0.3.0` branches exist with #10, #19
+merged; a live Moonlight read works (`plc_probe.py` resolves 9 symbols); the
+headless Kit check passes live on contract v2 at 50 Hz.
 
 ---
 
