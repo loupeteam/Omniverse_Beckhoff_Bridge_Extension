@@ -129,6 +129,11 @@ of docs/IMPLEMENTATION_PLAN.md in the Beckhoff repo."
 
 ## Phase 3: the framework extension (OU; one sub-agent, 3 to 5 days)
 
+**Built 2026-10-07**: OU #13 (draft against `rc/0.3.0`, 8 commits). 19 Kit tests;
+mixed-stage harness live (legacy Beckhoff prim on TwinCAT + neutral B&R prim on
+the mock) OK three times; `on_sample_main` on the main thread once per frame;
+write-back keeps the B&R colon. Under review before merge.
+
 Goal: one Kit extension, `loupe.simulation.bridge`, owns everything a
 simulation touches, with vendor code behind a registry. This is the step the
 architecture review asked to design against two drivers, which Phases 1 and 2
