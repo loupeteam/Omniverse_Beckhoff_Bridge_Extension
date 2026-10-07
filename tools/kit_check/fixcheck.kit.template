@@ -1,0 +1,132 @@
+[package]
+title = "Moonlight Rig"
+version = "0.1.0"
+description = "Animatronic head rig: viewport, PhysX, and the Moonlight slider panel."
+keywords = ["experience", "app", "usd"]
+template_name = "omni.usd_composer"
+
+# Built against Kit SDK 108.1.0, whose RTX renderer works on driver 616.56.
+# Isaac Sim 5.1 pins Kit 107.3.x, whose rtx.scenedb.plugin.dll faults with an access
+# violation on this driver -- which is why the rig is hosted here instead.
+#
+# Drop this in your kit-app-template at source/apps/moonlight_composer.kit, then
+# `repo build`. The version-lock block the template generates is deliberately absent;
+# the build writes it.
+
+[dependencies]
+# --- shell ---
+"omni.kit.uiapp" = {}
+"omni.kit.renderer.core" = {}
+"omni.kit.window.title" = {}
+"omni.kit.window.status_bar" = {}
+"omni.kit.window.console" = {}
+"omni.kit.window.extensions" = {}
+"omni.kit.window.script_editor" = {}      # for tools/omniverse_smoketest.py
+
+# --- menus ---
+"omni.kit.menu.utils" = {}
+"omni.kit.menu.file" = {}
+"omni.kit.menu.edit" = {}
+"omni.kit.menu.create" = {}
+"omni.kit.menu.stage" = {}
+"omni.kit.menu.common" = { order = 1000 }
+
+# --- viewport ---
+"omni.kit.viewport.bundle" = {}
+"omni.kit.viewport.rtx" = {}
+"omni.kit.viewport.actions" = {}
+"omni.kit.viewport.menubar.lighting" = {}
+"omni.kit.manipulator.prim" = {}
+"omni.kit.manipulator.transform" = {}
+
+# --- stage authoring ---
+"omni.usd" = {}
+"omni.kit.window.file" = {}
+"omni.kit.window.stage" = {}
+"omni.kit.window.property" = {}
+"omni.kit.property.bundle" = {}
+"omni.kit.stage_templates" = {}
+"omni.kit.selection" = {}
+"omni.kit.context_menu" = {}
+
+# --- physics: what wolf_head_physics.usda needs ---
+"omni.usdphysics" = {}
+"omni.physx" = {}
+"omni.physx.stageupdate" = {}
+# The Beckhoff bridge calls omni.timeline.get_timeline_interface() in its on_startup but
+# does not declare it. Undeclared, the interface is not up yet and the extension throws
+# "Failed to acquire interface: omni::timeline::ITimeline" -- while still reporting
+# itself as enabled. Naming it here makes Kit load it first.
+"omni.timeline" = {}
+
+# --- the rig panel itself ---
+"moonlight.rig.control" = {}
+
+# --- the PLC link (vendored under ext-vendor/, see plc/README.md) ---
+# Declared rather than passed with --enable so Kit resolves the load order itself.
+"loupe.simulation.beckhoff_bridge" = {}
+
+[settings.app]
+name = "Moonlight Rig"
+content.emptyStageOnStart = false
+fastShutdown = true
+
+# Off on purpose. The slider panel writes USD attributes directly; with the Fabric scene
+# delegate the viewport reads from Fabric instead, and edits can fail to show. Turn it
+# back on once you have confirmed the sliders move geometry.
+useFabricSceneDelegate = false
+
+[settings.app.window]
+title = "Moonlight Rig"
+width = 1920
+height = 1080
+
+[settings.app.extensions]
+registryEnabled = true
+
+# The bridge is configured by the *stage*, not from here. A connection is a prim at
+# /PLC/<name> carrying beckhoff_bridge:AmsNetId / Enable / RefreshRate / Variables, and
+# tools/build_usd.py generates it from rig.json -- so the address and the rate live with
+# the rig they belong to and a fork changes them in the file it already edits.
+#
+# Enable ships false there: opening the rig should not make the machine start talking to
+# a PLC. This one setting survives as the launch flag (`python make.py app plc`), and
+# moonlight.rig.control carries it onto the prim at startup.
+[settings.persistent."loupe.simulation.beckhoff_bridge"]
+ENABLE_COMMUNICATION = false
+
+[settings.app.exts.folders]
+# D:/prj/Sandboxed/Moonlight is replaced with this checkout's path by tools/stage_kit.py, which is what
+# copies this file into kit-app-template for the build. It cannot be a path relative to
+# ${app}: Kit resolves that to source/apps during precache and to _build/.../release/apps
+# at runtime, so one relative path always breaks the other -- and breaking precache is a
+# build failure, since that is where the version lock resolves dependencies.
+'++' = [
+    "${app}/../exts",
+    "${app}/../extscache",
+    "D:/prj/Sandboxed/Moonlight/ext",
+    "${FIXCHECK_EXTS}",
+]
+
+[settings.app.viewport]
+autoFrame.mode = "first_open"
+defaults.fillViewport = true
+
+[settings.app.renderer]
+resolution.width = 1920
+resolution.height = 1080
+skipWhileMinimized = true
+
+[settings]
+renderer.active = "rtx"
+renderer.enabled = "rtx"
+foundation.verifyOsVersion.enabled = false
+
+[settings.rtx]
+ecoMode.enabled = true
+
+[settings.persistent.app.viewport]
+displayOptions = 32255
+
+[template]
+type = "ApplicationTemplate"
