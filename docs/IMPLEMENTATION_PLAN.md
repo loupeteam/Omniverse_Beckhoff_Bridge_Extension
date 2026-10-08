@@ -190,6 +190,11 @@ OU #14 (mirror crashed Kit when the stage was replaced while data flowed;
 `Manager` init order; warning text). Follow-ups BK #23 and BR #19 merged.
 Open for Phase 5: ARsim run (4.6), the Moonlight sandbox on all three
 extensions from rc, the bundled-wheel install path in Kit, the window.
+The ARsim gap closed 2026-10-08 with BR #20 (1009437): `test/AS Project` is now
+an Automation Studio 6 project (AR 6.7.6) and `kit_check -Mode arsim` passed
+against it; the same PR flags writes to symbols whose last read failed, since
+OMJSON 2.0.0 echoes unknown symbols. OMJSON is deprecated upstream and will
+not be fixed, so that check stays the only guard.
 
 ---
 
@@ -201,6 +206,18 @@ extensions from rc, the bundled-wheel install path in Kit, the window.
 | 5.2 | Verification matrix, recorded in `docs/RELEASE_0.3.0.md`: pytest for three libraries; Kit harness for BK live, BR live, mixed stage, legacy stage; a Moonlight soak of 30 minutes with the PLC dropped and restored once (reconnect, no zombie threads, memory flat). |
 | 5.3 | Architecture review by a sub-agent on `rc/0.3.0` of all three repos against `ARCHITECTURE_PLAN.md`; findings fixed on rc. |
 | 5.4 | Scott: merge `rc/0.3.0` to `main` in OU, then BK, then BR; tag `v0.3.0`; GitHub releases with the migration guide linked; publish wheels. |
+
+**5.1 and 5.2 built 2026-10-08** on `release/0.3.0` in all three repos (drafts
+into `rc/0.3.0`: OU #15, BR #21 and the BK release PR). Versions 0.3.0,
+changelogs consolidated under `[0.3.0] - Unreleased` (dated at the merge to
+`main`), this plan reconciled with the copy on `refactor/contract-v2`. Matrix in
+[RELEASE_0.3.0.md](RELEASE_0.3.0.md): pytest, Kit tests, BK live on TwinCAT, BR
+live on ARsim, mixed and legacy stages, Moonlight on the release branches, the
+bundled-wheel path and a 32-minute soak with one PLC drop pass. Open findings
+there: pipapi keeps old libraries across upgrades, sparse arrays change shape
+on the bus, memory grows about 1 MB a minute while data flows. Merge OU #15
+first: BK and BR CI install `plc-bridge` from OU `rc/0.3.0`. 5.3 and 5.4 not
+started.
 
 Deferred to 0.4: mirror default off; `legacyBusNames` default off; OmniGraph
 read/write nodes if a project asks for no-code access; `describe()` for type
