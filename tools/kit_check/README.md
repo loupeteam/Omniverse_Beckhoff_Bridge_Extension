@@ -16,6 +16,7 @@ PLC; `inject` mode registers an in-memory driver under `beckhoff` instead.
 | File | Role |
 |---|---|
 | `kit_check.py` | the check, run inside Kit with `--exec`; reads `FIXCHECK_STAGE` and `FIXCHECK_MODE` |
+| `soak.py` | a long live run (default 32 min) logging samples, workers and memory every 10 s; see its docstring and `docs/RELEASE_0.3.0.md` |
 | `fixcheck.kit.template` | a USD Composer app with the bridge as a dependency; `${FIXCHECK_EXTS}`, `${FIXCHECK_FRAMEWORK_EXTS}` and `${FIXCHECK_KIT_ROOT}` are filled in |
 | `run.sh`, `run.ps1` | generate the `.kit` in a temp folder, run `kit.exe`, print the check's lines, exit 0 on `OK` |
 | `stages/beckhoff_test.usda` | `/PLC/PLC1` in the 0.2.x form and `/PLC/PLC2` in the 0.3 form, both at `127.0.0.1.1.1`, reading `GVL_Moonlight.*` symbols |

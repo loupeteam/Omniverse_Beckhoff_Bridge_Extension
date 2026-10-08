@@ -1,6 +1,6 @@
 Changelog
 
-[Unreleased]
+[0.3.0] - Unreleased
 See MIGRATION.md for upgrading from 0.2.x. A 0.2.x stage and script keep working, with deprecation warnings.
 
 Architecture
@@ -29,7 +29,7 @@ Removed
 - The modules `Runtime` and `ui_builder`; the framework provides both.
 
 Packaging and tools
-- Pip requirements `pyads` and `beckhoff-bridge` (`>=0.3.0rc1,<0.4`), installed by Kit's pipapi; `plc-bridge` comes with the framework, which owns its pin. Until the packages are on PyPI, `tools/build_wheels.py` bundles the wheels in the extension's `wheels/` folder, and `tools/dev_link.py` installs the checkouts into Kit's Python for a git clone. Both take the `plc_bridge` checkout with `--plc-bridge`. `beckhoff-bridge` is versioned `0.3.0rc1` and built by CI.
+- Pip requirements `pyads` and `beckhoff-bridge` (`>=0.3.0,<0.4`), installed by Kit's pipapi; `plc-bridge` comes with the framework, which owns its pin. Until the packages are on PyPI, `tools/build_wheels.py` bundles the wheels in the extension's `wheels/` folder, and `tools/dev_link.py` installs the checkouts into Kit's Python for a git clone. Both take the `plc_bridge` checkout with `--plc-bridge`. `beckhoff-bridge` 0.3.0 is built by CI.
 - `tools/kit_check/` runs the extension and the framework headless and checks a 0.2.x prim, a 0.3 prim and an unchanged 0.2.x script side by side, live or with injected data. `tools/kit_test.ps1` runs the extension's Kit tests.
 
 [0.2.1]
