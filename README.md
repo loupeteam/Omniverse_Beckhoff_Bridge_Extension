@@ -48,10 +48,19 @@ without looking at what is already installed. On
 first start Kit installs from it with `--no-index` into the app's pip environment;
 on later starts it finds the packages importable and does nothing.
 
+This folder only serves this extension. The framework installs `plc-bridge`
+from **its own** `wheels/` folder, and it starts first, so it needs that folder
+filled too: run Omni-Utils' `python tools/build_wheels.py` in the Omni-Utils
+checkout as well. Without it the framework's pipapi finds no archive, falls back
+to PyPI, where `plc-bridge` is not published yet, and the framework fails to
+import `plc_bridge`; this extension then fails with it.
+
 ## Working from a clone
 
 To run from source without building wheels, install the checkouts editable
-into the Kit app's own Python:
+into the Kit app's own Python. This satisfies both extensions' pip
+requirements, the framework's `plc-bridge` included, so neither `wheels/`
+folder is needed; it is the path the harness in `tools/kit_check` is verified on:
 
 ```
 python tools/dev_link.py <kit build root> --plc-bridge <Omni-Utils checkout>/plc_bridge
@@ -111,7 +120,7 @@ This software contains source code provided by NVIDIA Corporation. This code is 
 ### Files created entirely by Loupe ([MIT License](LICENSE)):
 * everything under `beckhoff_bridge/` (the ADS driver as a plain Python package)
 * `tools/build_wheels.py`, `tools/dev_link.py`, `tools/kit_test.ps1` and everything under `tools/kit_check/`
-* `BeckhoffBridge.py`
+* `BeckhoffBridge.py`, `Communication.py`, `global_variables.py` (deprecated re-exports)
 * everything under `tests/` in the extension
 
 ### Files including Nvidia-generated code and modifications by Loupe (Nvidia Omniverse License Agreement AND MIT License; use must comply to whichever is most restrictive for any attribute):

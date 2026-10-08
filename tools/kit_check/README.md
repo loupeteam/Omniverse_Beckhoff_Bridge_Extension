@@ -28,7 +28,9 @@ extensions, an Omni-Utils checkout for the framework extension (its `exts/`
 folder; default `../Omni-Utils/exts` next to this repo), and the libraries in
 place: either the editable installs
 (`python tools/dev_link.py <kit build root> --plc-bridge <Omni-Utils>/plc_bridge`)
-or the bundled wheels, see the root README.
+or the bundled wheels, built in both this repo and the Omni-Utils checkout (see
+the root README). The harness adds no wheel folder of its own, so a missing
+library fails the run instead of being masked.
 
 ```bash
 # no PLC: synthetic data

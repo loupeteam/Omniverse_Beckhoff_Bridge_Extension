@@ -16,7 +16,7 @@ Open the extensions manager (`Window / Extensions`), search for `Beckhoff Bridge
 
 - Clone this repo and [Omni-Utils](https://github.com/loupeteam/Omni-Utils) side by side.
 - In your Omniverse app, open `Window / Extensions`, then the general extension settings, and add both repos' `exts` folders to the `Extension Search Paths`.
-- Make the Python packages available to Kit: `tools/dev_link.py` (from source) or `tools/build_wheels.py` (bundled wheels). See the root README.
+- Make the Python packages available to Kit. `plc-bridge` and `beckhoff-bridge` are not on PyPI yet, so Kit cannot fetch them by itself. Either run `python tools/dev_link.py <kit build root> --plc-bridge <Omni-Utils>/plc_bridge` once, which installs both libraries into Kit's Python, or run `python tools/build_wheels.py` in **both** repos, which fills each extension's `wheels/` folder. See the root README.
 - Search for `BECKHOFF BRIDGE` in the extensions manager and enable it.
 
 # Configuring a PLC
