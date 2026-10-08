@@ -89,7 +89,12 @@ next start. `python tools/dev_link.py <kit build root> --uninstall [--plc-bridge
   missing from the folder fails the archive attempt silently and pip falls through
   to the index. `<env>` is `%LOCALAPPDATA%\ov\data\Kit\<app name>\<app
   version>\pip3-envs\default-<python>`; delete it to force a reinstall, for
-  example after rebuilding the wheels under the same version.
+  example after rebuilding the wheels under the same version. The import check
+  never looks at the version either, so the same applies to an upgrade: an app
+  that once installed `plc-bridge` / `beckhoff-bridge` 0.3.0rc1 keeps running
+  the rc1 code under the 0.3.0 extensions until that folder is deleted
+  (`installCheckIgnoreVersion` defaults to true in omni.kit.pipapi on Kit 110.3;
+  the test apps' folders still held rc1 when 0.3.0 was tested).
 - Kit has its working directory on `sys.path`. Started from this repo's root, the
   bare `beckhoff_bridge/` folder imports as an empty namespace package: pipapi's
   check still fails (there is no `beckhoff_bridge.driver` in it) and the wheel is
