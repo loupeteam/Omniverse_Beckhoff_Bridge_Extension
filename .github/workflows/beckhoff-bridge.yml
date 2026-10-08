@@ -27,6 +27,9 @@ permissions:
   contents: read
 
 env:
+  # rc/0.3.0 while 0.3.0 is in review. At release this must move to the tag
+  # Omni-Utils cuts for 0.3.0 (v0.3.0, or plc-bridge-v0.3.0 if that is the
+  # one that publishes), so a later rc branch cannot change what CI tests.
   PLC_BRIDGE_REF: rc/0.3.0
 
 jobs:

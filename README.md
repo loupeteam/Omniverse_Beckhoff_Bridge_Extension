@@ -81,7 +81,7 @@ next start. `python tools/dev_link.py <kit build root> --uninstall [--plc-bridge
   therefore takes precedence over the bundled wheels: with `dev_link.py` applied
   the log shows no `Attempting to install` line at all and the extension imports
   from the working tree. Without `modules`, pipapi tries to import the requirement
-  string itself (`beckhoff-bridge>=0.3.0rc1,<0.4`), which never succeeds.
+  string itself (`beckhoff-bridge>=0.3.0,<0.4`), which never succeeds.
 - pip runs as `pip --isolated install --target <env> --no-index --find-links
   <wheels>` first, then without `--no-index` against the online index. `--target`
   ignores packages that are already installed, so the archive has to contain the
@@ -94,7 +94,7 @@ next start. `python tools/dev_link.py <kit build root> --uninstall [--plc-bridge
   bare `beckhoff_bridge/` folder imports as an empty namespace package: pipapi's
   check still fails (there is no `beckhoff_bridge.driver` in it) and the wheel is
   installed, but the empty package stays cached in `sys.modules`, pipapi logs
-  `'beckhoff-bridge>=0.3.0rc1,<0.4' failed to install`, and the extension's own
+  `'beckhoff-bridge>=0.3.0,<0.4' failed to install`, and the extension's own
   import would hit the same cached entry. The extension's `__init__.py` drops a
   cached namespace package before importing, so that start works (verified) and
   the warning is harmless. The harness launchers run Kit from a temp folder to
