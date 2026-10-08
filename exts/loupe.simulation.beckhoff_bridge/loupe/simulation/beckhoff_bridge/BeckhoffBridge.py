@@ -51,8 +51,5 @@ class Manager(_Manager):
     """
 
     def __init__(self, Name: str = None):
-        # The framework raises on a missing name before it sets this, and its
-        # __del__ then fails on the half-built object; give __del__ what it needs.
-        self._callbacks = []
         namespace = LEGACY_NAMESPACE if legacy_bus_names_enabled() else BUS_NAMESPACE
         super().__init__(Name, namespace=namespace)
