@@ -54,7 +54,7 @@ review) and 5.4 (merge, tag, publish) are still open.
 
 ## Soak
 
-`soak.py` (kept with the run logs, not in the repo) runs inside the BK harness's
+`tools/kit_check/soak.py` runs inside the BK harness's
 app (`tools/kit_check/fixcheck.kit.template`, both release extensions, bundled
 wheels) on `tools/kit_check/stages/beckhoff_test.usda`: PLC1 a 0.2.x prim with
 five symbols, PLC2 a 0.3 prim with three, both at 50 Hz, USD mirror on. Every
