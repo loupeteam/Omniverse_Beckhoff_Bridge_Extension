@@ -1,18 +1,23 @@
 """Run the Beckhoff extension from a git clone without building wheels.
 
-The extension declares `plc-bridge` and `beckhoff-bridge` as pip requirements.
-Kit's pipapi tries to import each requirement's module before it calls pip and
-skips the install when the import works, so installing the two checkouts
-editable into Kit's own Python makes Kit use the working tree directly: edit
-`beckhoff_bridge/src` or the submodule and restart the app, no wheel build.
+The extension declares `beckhoff-bridge` as a pip requirement and depends on
+the framework extension `loupe.simulation.bridge`, which declares
+`plc-bridge`. Kit's pipapi tries to import each requirement's module before it
+calls pip and skips the install when the import works, so installing the
+checkouts editable into Kit's own Python makes Kit use the working tree
+directly: edit `beckhoff_bridge/src` and restart the app, no wheel build.
 
-  plc_bridge       exts/loupe.simulation.beckhoff_bridge/loupe/simulation/common/plc_bridge
-  beckhoff_bridge  beckhoff_bridge/
+  beckhoff_bridge  beckhoff_bridge/ at this repo's root
+  plc_bridge       plc_bridge/ of an Omni-Utils checkout, with --plc-bridge DIR
+                   (leave it out when Omni-Utils' own tools/dev_link.py has
+                   already installed it)
 
-`pyads` is pulled in by beckhoff-bridge's own dependency list.
+`pyads` is pulled in by beckhoff-bridge's own dependency list. Kit also needs
+the framework extension: add the Omni-Utils checkout's `exts/` folder to the
+app's extension search paths.
 
 Usage:
-    python tools/dev_link.py <kit build root | kit/python/python.exe>
+    python tools/dev_link.py <kit build root | kit/python/python.exe> [--plc-bridge DIR]
     python tools/dev_link.py <...> --uninstall
 
 The first form takes the folder that holds `kit/kit.exe` (a kit-app-template
@@ -25,12 +30,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXT = os.path.join(ROOT, "exts", "loupe.simulation.beckhoff_bridge")
-PACKAGES = {
-    "plc_bridge": os.path.join(EXT, "loupe", "simulation", "common", "plc_bridge"),
-    "beckhoff_bridge": os.path.join(ROOT, "beckhoff_bridge"),
-}
-PIP_NAMES = ["plc-bridge", "beckhoff-bridge"]
+BECKHOFF_BRIDGE = os.path.join(ROOT, "beckhoff_bridge")
 EXE = "python.exe" if sys.platform == "win32" else "python3"
 
 
@@ -53,21 +53,27 @@ def kit_python(path):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("kit", help="Kit build root, Kit SDK root, or its python executable")
-    ap.add_argument("--uninstall", action="store_true", help="remove the editable installs again")
+    ap.add_argument("--plc-bridge", help="also install this plc_bridge/ checkout editable (Omni-Utils)")
+    ap.add_argument("--uninstall", action="store_true",
+                    help="remove the editable install again (and plc-bridge with --plc-bridge)")
     args = ap.parse_args(argv)
 
     python = kit_python(args.kit)
     print("Kit Python: {}".format(python))
 
     if args.uninstall:
-        cmd = [python, "-m", "pip", "uninstall", "-y"] + PIP_NAMES
+        cmd = [python, "-m", "pip", "uninstall", "-y", "beckhoff-bridge"]
+        if args.plc_bridge:
+            cmd.append("plc-bridge")
     else:
-        for name, src in PACKAGES.items():
+        sources = [BECKHOFF_BRIDGE] + ([os.path.abspath(args.plc_bridge)] if args.plc_bridge else [])
+        for src in sources:
             if not os.path.isfile(os.path.join(src, "pyproject.toml")):
-                sys.exit("{}: no pyproject.toml at {}\n"
-                         "(plc_bridge: run 'git submodule update --init' first)".format(name, src))
+                sys.exit("no pyproject.toml at {}".format(src))
+        # One pip call, so beckhoff-bridge's plc-bridge requirement resolves to the
+        # checkout (or the copy already installed) and pip never asks an index for it.
         cmd = [python, "-m", "pip", "install"]
-        for src in PACKAGES.values():
+        for src in sources:
             cmd += ["-e", src]
     print(" ".join(cmd))
     subprocess.run(cmd, check=True)
