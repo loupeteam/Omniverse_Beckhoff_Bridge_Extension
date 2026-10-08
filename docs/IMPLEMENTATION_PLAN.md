@@ -208,7 +208,7 @@ not be fixed, so that check stays the only guard.
 | 5.4 | Scott: merge `rc/0.3.0` to `main` in OU, then BK, then BR; tag `v0.3.0`; GitHub releases with the migration guide linked; publish wheels. |
 
 **5.1 and 5.2 built 2026-10-08** on `release/0.3.0` in all three repos (drafts
-into `rc/0.3.0`: OU #15, BR #21 and the BK release PR). Versions 0.3.0,
+into `rc/0.3.0`: OU #15, BK #24, BR #21). Versions 0.3.0,
 changelogs consolidated under `[0.3.0] - Unreleased` (dated at the merge to
 `main`), this plan reconciled with the copy on `refactor/contract-v2`. Matrix in
 [RELEASE_0.3.0.md](RELEASE_0.3.0.md): pytest, Kit tests, BK live on TwinCAT, BR

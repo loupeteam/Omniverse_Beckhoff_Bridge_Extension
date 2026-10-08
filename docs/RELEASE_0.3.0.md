@@ -8,7 +8,7 @@ documentation:
 | Repo | Branch | Cut from | PR |
 |---|---|---|---|
 | Omni-Utils (OU) | `release/0.3.0` | `rc/0.3.0` at 51f8c82 | loupeteam/Omni-Utils#15 |
-| Beckhoff bridge (BK) | `release/0.3.0` | `rc/0.3.0` at 95572f1 | this repo |
+| Beckhoff bridge (BK) | `release/0.3.0` | `rc/0.3.0` at 95572f1 | #24 |
 | B&R bridge (BR) | `release/0.3.0` | `rc/0.3.0` at 1009437 | loupeteam/Omniverse_BnR_Bridge_Extension#21 |
 
 Nothing is merged to `main`, tagged or published. Steps 5.3 (architecture
