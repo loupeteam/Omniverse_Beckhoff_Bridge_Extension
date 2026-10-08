@@ -129,6 +129,13 @@ of docs/IMPLEMENTATION_PLAN.md in the Beckhoff repo."
 
 ## Phase 3: the framework extension (OU; one sub-agent, 3 to 5 days)
 
+**Built 2026-10-07**: OU #13 (draft against `rc/0.3.0`, 8 commits). 19 Kit tests;
+mixed-stage harness live (legacy Beckhoff prim on TwinCAT + neutral B&R prim on
+the mock) OK three times; `on_sample_main` on the main thread once per frame;
+write-back keeps the B&R colon. Two review passes (10 findings, all fixed with
+tests; 31 Kit tests); verdict mergeable. Third pass 2026-10-08 (6 low findings, all
+fixed; 36 Kit tests, 104 library tests). **Merged into `rc/0.3.0` 2026-10-08** (542179c).
+
 Goal: one Kit extension, `loupe.simulation.bridge`, owns everything a
 simulation touches, with vendor code behind a registry. This is the step the
 architecture review asked to design against two drivers, which Phases 1 and 2
@@ -161,14 +168,6 @@ B&R drivers from their libraries for the tests."
 
 ## Phase 4: vendor extensions become thin; submodules go (BK, BR; one sub-agent each, 1 day each)
 
-**BK in review 2026-10-08**: BK #22 (draft against `rc/0.3.0`). Extension
-Python 195 lines; `BeckhoffBridge`, `Communication` and `global_variables`
-kept as deprecated re-exports. Harness live against TwinCAT with a legacy and a
-neutral prim and an unchanged 0.2.x script; 9 Kit tests (plus the shim checks);
-pytest 47. Found: the framework `Manager` raises on a missing name before it sets
-`_callbacks`, so `__del__` logs an error; worked around in `BeckhoffBridge`,
-fix pending in Omni-Utils.
-
 | # | Repo | Task |
 |---|---|---|
 | 4.1 | BK | `extension.toml`: depend on `loupe.simulation.bridge` (version range `[0.3, 0.4)`), pip `pyads`, `beckhoff-bridge`. `extension.py` registers `AdsDriver` with the option schema (`AmsNetId` string) and an optional UI panel. Delete `Runtime.py`, `System`/UI usage, `Communication.py`, `ui_builder.py`. |
@@ -182,6 +181,15 @@ Acceptance: each vendor extension is under 200 lines of Python; no
 `loupe/simulation/common` folder in either repo; a 0.2.x BK stage and script
 run unchanged with warnings; the Moonlight sandbox runs against the three
 extensions from `rc/0.3.0`.
+
+**Done 2026-10-08**: BK #22 (195 lines; 11 Kit tests; harness live on TwinCAT
+with legacy and neutral prims) and BR #18 (196 lines; 5 Kit tests; harness
+against the mock OMJSON server, not ARsim) merged into `rc/0.3.0`, each after
+one review pass with all findings fixed. Framework fixes found on the way in
+OU #14 (mirror crashed Kit when the stage was replaced while data flowed;
+`Manager` init order; warning text). Follow-ups BK #23 and BR #19 merged.
+Open for Phase 5: ARsim run (4.6), the Moonlight sandbox on all three
+extensions from rc, the bundled-wheel install path in Kit, the window.
 
 ---
 
