@@ -3,10 +3,10 @@ reloadable = true
 order = 0
 
 [package]
-version = "0.2.1"
+version = "0.3.0-rc1"
 category = "simulation"
 title = "Beckhoff Bridge"
-description = "A bridge for connecting Omniverse to Beckhoff PLCs over ADS"
+description = "Beckhoff PLC driver (ADS) for the Loupe PLC bridge: registers the driver with loupe.simulation.bridge, which owns the /PLC prims, the runtimes, the bus and the UI."
 authors = ["Loupe"]
 repository = "https://github.com/loupeteam/Omniverse_Beckhoff_Bridge_Extension"
 keywords = ["Beckhoff", "Digital Twin", "ADS", "PLC"]
@@ -16,24 +16,21 @@ preview_image = "data/preview.png"
 icon = "data/icon.png"
 
 [dependencies]
-"omni.kit.uiapp" = {}
-# Everything used in on_startup has to be declared here. An app that lists them in
-# its own dependencies is not enough: that says what to load, not what to load first
-# -- only the consuming extension's manifest orders startup.
-#
-#   omni.timeline        get_timeline_interface() raises outright if not yet loaded
-#   omni.usd             get_context() returns None before omni.usd has started
-#   omni.kit.menu.utils  add_menu_items is imported at module level
-"omni.timeline" = {}
-"omni.usd" = {}
-"omni.kit.menu.utils" = {}
+# The framework: /PLC prims, the polling runtimes, the message bus, the USD
+# mirror and the window. This extension only registers a driver with it.
+# "0.3" accepts any 0.3.x, including its release candidates, and nothing from 0.4.
+"loupe.simulation.bridge" = { version = "0.3" }
+# Installs the pip requirements below before this extension starts. Without it
+# an app that enables only this extension (the omni.kit.test startup test)
+# never starts pipapi, and the import of beckhoff_bridge fails.
+"omni.kit.pipapi" = {}
 
 [python.pipapi]
-# The driver stack is three pip packages, installed by Kit before the extension
-# starts: pyads (the ADS transport), plc-bridge (the vendor-neutral runtime and
-# driver contract, from Omni-Utils) and beckhoff-bridge (the ADS driver,
-# beckhoff_bridge/ at this repo's root). Neither Loupe package imports Kit.
-requirements = ["pyads", "plc-bridge>=0.3.0rc1,<0.4", "beckhoff-bridge>=0.3.0rc1,<0.4"]
+# pyads (the ADS transport) and beckhoff-bridge (the ADS driver, beckhoff_bridge/
+# at this repo's root). plc-bridge comes in through the framework, which owns
+# its exact pin: Kit installs every extension's pip requirements into one
+# site-packages and does not resolve conflicts, so there is one owner.
+requirements = ["pyads", "beckhoff-bridge>=0.3.0rc1,<0.4"]
 # What to import to decide whether a requirement is already satisfied. pipapi
 # tries this import first and calls pip only when it fails, so a checkout
 # installed into Kit's Python by tools/dev_link.py takes precedence over the
@@ -42,11 +39,11 @@ requirements = ["pyads", "plc-bridge>=0.3.0rc1,<0.4", "beckhoff-bridge>=0.3.0rc1
 # the working directory on sys.path, and from the repo root the bare
 # beckhoff_bridge/ folder imports as an empty namespace package, which would
 # pass the check and skip the install. See the root README, "Working from a clone".
-modules = ["pyads", "plc_bridge.runtime", "beckhoff_bridge.driver"]
-# Until plc-bridge and beckhoff-bridge are on PyPI their wheels ship in wheels/
-# in the extension folder (the path is relative to it); tools/build_wheels.py
-# fills it from the local checkouts. pip tries the archive first with
-# --no-index, then the online index.
+modules = ["pyads", "beckhoff_bridge.driver"]
+# Until beckhoff-bridge is on PyPI its wheel ships in wheels/ in the extension
+# folder (the path is relative to it), with its dependency closure;
+# tools/build_wheels.py fills it. pip tries the archive first with --no-index,
+# then the online index.
 archiveDirs = ["wheels"]
 use_online_index = true
 
@@ -55,8 +52,7 @@ name = "loupe.simulation.beckhoff_bridge"
 public = true
 
 [[test]]
-# Extra dependencies only to be used during test run
 dependencies = [
-    "omni.kit.ui_test", # UI testing extension
+    "omni.kit.ui_test",
 ]
 timeout = 60
