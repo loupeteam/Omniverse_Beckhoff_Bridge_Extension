@@ -133,7 +133,8 @@ of docs/IMPLEMENTATION_PLAN.md in the Beckhoff repo."
 mixed-stage harness live (legacy Beckhoff prim on TwinCAT + neutral B&R prim on
 the mock) OK three times; `on_sample_main` on the main thread once per frame;
 write-back keeps the B&R colon. Two review passes (10 findings, all fixed with
-tests; 31 Kit tests); verdict mergeable. Awaiting merge.
+tests; 31 Kit tests); verdict mergeable. Third pass 2026-10-08 (6 low findings, all
+fixed; 36 Kit tests, 104 library tests). **Merged into `rc/0.3.0` 2026-10-08** (542179c).
 
 Goal: one Kit extension, `loupe.simulation.bridge`, owns everything a
 simulation touches, with vendor code behind a registry. This is the step the
