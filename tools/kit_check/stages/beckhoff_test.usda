@@ -11,11 +11,25 @@ def Xform "World"
 
 def Scope "PLC"
 {
+    # A 0.2.x prim, unchanged: no bridge:driver, the attributes under
+    # beckhoff_bridge:*, Variables as a comma-separated string. The framework
+    # treats it as driver "beckhoff" and warns once.
     def Scope "PLC1"
     {
         custom string beckhoff_bridge:AmsNetId = "127.0.0.1.1.1"
         custom bool beckhoff_bridge:Enable = false
         custom int beckhoff_bridge:RefreshRate = 20
         custom string beckhoff_bridge:Variables = "GVL_Moonlight.Command.Blend,GVL_Moonlight.Command.Busy,GVL_Moonlight.Command.Enable,GVL_Moonlight.Axes[0].ActualPosition,GVL_Moonlight.Axes[1].ActualPosition"
+    }
+
+    # The 0.3.0 form of the same connection: neutral bridge:* attributes and the
+    # driver's option under its own namespace.
+    def Scope "PLC2"
+    {
+        custom string bridge:driver = "beckhoff"
+        custom bool bridge:Enable = false
+        custom int bridge:RefreshRate = 20
+        custom string[] bridge:Variables = ["GVL_Moonlight.Axes[2].ActualPosition", "GVL_Moonlight.Axes[3].ActualPosition", "GVL_Moonlight.Command.Blend"]
+        custom string beckhoff:AmsNetId = "127.0.0.1.1.1"
     }
 }
