@@ -182,6 +182,15 @@ Acceptance: each vendor extension is under 200 lines of Python; no
 run unchanged with warnings; the Moonlight sandbox runs against the three
 extensions from `rc/0.3.0`.
 
+**Done 2026-10-08**: BK #22 (195 lines; 11 Kit tests; harness live on TwinCAT
+with legacy and neutral prims) and BR #18 (196 lines; 5 Kit tests; harness
+against the mock OMJSON server, not ARsim) merged into `rc/0.3.0`, each after
+one review pass with all findings fixed. Framework fixes found on the way in
+OU #14 (mirror crashed Kit when the stage was replaced while data flowed;
+`Manager` init order; warning text). Follow-ups BK #23 and BR #19 merged.
+Open for Phase 5: ARsim run (4.6), the Moonlight sandbox on all three
+extensions from rc, the bundled-wheel install path in Kit, the window.
+
 ---
 
 ## Phase 5: release candidate (all; Scott plus one sub-agent, 1 day)
