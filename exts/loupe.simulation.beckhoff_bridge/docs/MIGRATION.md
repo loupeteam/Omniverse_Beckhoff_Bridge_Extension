@@ -106,6 +106,7 @@ list.
 | Warning | Where it comes from | Fix |
 |---|---|---|
 | `loupe.simulation.beckhoff_bridge.BeckhoffBridge is deprecated since 0.3.0 ...` | importing `BeckhoffBridge`: a Python `DeprecationWarning` and a line in the Kit log | Step 2 |
+| `... Communication is deprecated ...`, `... global_variables is deprecated ...` | importing those modules, the same way | [Deprecated modules](#deprecated-modules) |
 | a PLC prim that uses the 0.2.x `beckhoff_bridge:*` attributes | opening a stage with a 0.2.x prim, once per prim | Step 1 |
 | `Manager('PLC1'): no PLC prim '/PLC/PLC1' is loaded ...` | a `Manager` for a name the stage does not have (as in 0.2.x) | add the prim, or fix the name |
 
@@ -120,7 +121,7 @@ When the old names stop working:
 |---|---|---|---|
 | `beckhoff_bridge:*` prim attributes | read, with a warning | off by default, behind a compatibility setting | removed |
 | `loupe.simulation.beckhoff_bridge.*` bus names | on (`legacyBusNames = true`) | off by default; `legacyBusNames = true` keeps them | removed |
-| `BeckhoffBridge` module | imports, with a warning | off by default, behind a compatibility setting | removed |
+| `BeckhoffBridge`, `Communication`, `global_variables` modules | import, with a warning | off by default, behind a compatibility setting | removed |
 | USD mirror | on by default | off by default; `bridge:MirrorToUsd = true` per prim | off by default |
 
 "Off by default" means the old name stops working unless the app turns the
@@ -131,17 +132,27 @@ To find what still depends on the old bus names before 0.4, run the app with
 `--/exts/loupe.simulation.bridge/legacyBusNames=false`: a script that still
 subscribes to the vendor names directly gets no data.
 
+### Deprecated modules
+
+Like `BeckhoffBridge`, these import through 0.3.x with a `DeprecationWarning`
+(also logged), and are removed in 0.5.0:
+
+- `Communication`: `CommunicationDriver` and `AdsReadError`, re-exported from
+  the library. Use `from beckhoff_bridge import AdsDriver, AdsReadError`;
+  `CommunicationDriver` is the same class as `AdsDriver`, with the same
+  constructor and methods.
+- `global_variables`: the `ATTR_BECKHOFF_BRIDGE_*` constants (the 0.2.x
+  attribute names), `default_beckoff_properties` and `EXTENSION_*`. Use the
+  neutral attribute names in the table above.
+
 ### Removed
 
 - `Manager()` with no name, and the in-memory `PLC1` it created from the 0.1.x
   persistent settings. It raises `ValueError`. Add a `/PLC/PLC1` prim and call
   `Manager("PLC1")`.
-- The modules `Runtime`, `Communication`, `ui_builder` and `global_variables`.
-  The runtime is the framework's (`get_system().get_component("PLC1")`, or
-  `get_plc("PLC1")` for the polling object). The driver is
-  `from beckhoff_bridge import AdsDriver` (`CommunicationDriver` is still an
-  alias there). The attribute name constants have no replacement; the names are
-  in the table above.
+- The modules `Runtime` and `ui_builder`. The runtime is the framework's
+  (`get_system().get_component("PLC1")`, or `get_plc("PLC1")` for the polling
+  object); the window is the framework's.
 - The `loupe/simulation/common` submodule. Code that imported
   `loupe.simulation.common.*` imports from `loupe.simulation.bridge` instead.
   It was never documented as public, but this is a public repo.
