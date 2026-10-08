@@ -161,6 +161,14 @@ B&R drivers from their libraries for the tests."
 
 ## Phase 4: vendor extensions become thin; submodules go (BK, BR; one sub-agent each, 1 day each)
 
+**BK in review 2026-10-08**: BK #22 (draft against `rc/0.3.0`). Extension
+Python 195 lines; `BeckhoffBridge`, `Communication` and `global_variables`
+kept as deprecated re-exports. Harness live against TwinCAT with a legacy and a
+neutral prim and an unchanged 0.2.x script; 9 Kit tests (plus the shim checks);
+pytest 47. Found: the framework `Manager` raises on a missing name before it sets
+`_callbacks`, so `__del__` logs an error; worked around in `BeckhoffBridge`,
+fix pending in Omni-Utils.
+
 | # | Repo | Task |
 |---|---|---|
 | 4.1 | BK | `extension.toml`: depend on `loupe.simulation.bridge` (version range `[0.3, 0.4)`), pip `pyads`, `beckhoff-bridge`. `extension.py` registers `AdsDriver` with the option schema (`AmsNetId` string) and an optional UI panel. Delete `Runtime.py`, `System`/UI usage, `Communication.py`, `ui_builder.py`. |

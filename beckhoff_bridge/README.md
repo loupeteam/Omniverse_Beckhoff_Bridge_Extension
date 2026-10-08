@@ -49,7 +49,7 @@ A symbol the PLC rejects is left out of the result and reported in
 ## Tests
 
 ```bash
-pip install -e ../exts/loupe.simulation.beckhoff_bridge/loupe/simulation/common/plc_bridge
+pip install -e <Omni-Utils checkout>/plc_bridge   # or: pip install "plc-bridge @ git+https://github.com/loupeteam/Omni-Utils.git@rc/0.3.0#subdirectory=plc_bridge"
 pip install -e .[test]
 pytest
 ```
@@ -58,9 +58,10 @@ The tests use a fake connection and do not need a PLC or the TwinCAT router.
 
 ## Development in the extension repo
 
-The extension declares this package and `plc_bridge` as pip requirements. From
-a git clone, `python tools/dev_link.py <kit build root>` installs both checkouts
-editable into Kit's Python so edits here are used directly; for a packaged
+The extension declares this package as a pip requirement; `plc_bridge` comes
+with the framework extension `loupe.simulation.bridge`. From a git clone,
+`python tools/dev_link.py <kit build root> --plc-bridge <Omni-Utils>/plc_bridge`
+installs both checkouts editable into Kit's Python so edits here are used directly; for a packaged
 extension, `python tools/build_wheels.py` bundles the wheels. See the root
 README. `plc_bridge` is not on PyPI yet, hence the path install above.
 `.github/workflows/beckhoff-bridge.yml` runs these tests on Python 3.10 and

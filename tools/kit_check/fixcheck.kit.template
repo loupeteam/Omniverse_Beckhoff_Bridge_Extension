@@ -6,8 +6,9 @@ keywords = ["experience", "app", "usd"]
 template_name = "omni.usd_composer"
 
 # run.sh / run.ps1 generate the .kit from this template: ${FIXCHECK_EXTS} becomes
-# the extension folder under test and ${FIXCHECK_KIT_ROOT} the kit-app-template
-# build (the folder holding kit/kit.exe). Kit resolves ${app} to the generated
+# the extension folder under test, ${FIXCHECK_FRAMEWORK_EXTS} the exts/ folder of
+# an Omni-Utils checkout (the framework extension loupe.simulation.bridge) and
+# ${FIXCHECK_KIT_ROOT} the kit-app-template build (the folder holding kit/kit.exe). Kit resolves ${app} to the generated
 # file's folder, which is a temp dir, so the build's folders are named in full.
 #
 # The dependency list is the kit-app-template USD Composer app with the project
@@ -61,6 +62,7 @@ template_name = "omni.usd_composer"
 
 # --- the extension under test ---
 # Declared rather than passed with --enable so Kit resolves the load order itself.
+# It pulls in the framework, loupe.simulation.bridge, from ${FIXCHECK_FRAMEWORK_EXTS}.
 "loupe.simulation.beckhoff_bridge" = {}
 
 [settings.app]
@@ -77,11 +79,10 @@ height = 1080
 [settings.app.extensions]
 registryEnabled = true
 
-# The bridge is configured by the stage: a prim at /PLC/<name> carrying
-# beckhoff_bridge:AmsNetId / Enable / RefreshRate / Variables. kit_check.py
-# enables communication itself, so the stage ships Enable = false.
-[settings.persistent."loupe.simulation.beckhoff_bridge"]
-ENABLE_COMMUNICATION = false
+# The bridge is configured by the stage: prims under /PLC carrying
+# bridge:driver = "beckhoff" and beckhoff:AmsNetId, or the 0.2.x
+# beckhoff_bridge:* attributes. kit_check.py enables communication itself, so
+# the stage ships Enable = false.
 
 [settings.app.exts.folders]
 '++' = [
@@ -89,6 +90,7 @@ ENABLE_COMMUNICATION = false
     "${FIXCHECK_KIT_ROOT}/extscache",
     "${FIXCHECK_KIT_ROOT}/apps",
     "${FIXCHECK_EXTS}",
+    "${FIXCHECK_FRAMEWORK_EXTS}",
 ]
 
 [settings.app.viewport]
