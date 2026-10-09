@@ -9,6 +9,7 @@
 """
 
 import threading
+import time
 
 import pyads
 from pyads.errorcodes import ERROR_CODES
@@ -26,6 +27,11 @@ _ADS_TRANSPORT_ERRORS = frozenset({6, 7, 18, 1861, 1864})
 ADS_TIMEOUT_MS = 1000
 # What pyads' sum write reports for a symbol that was written
 _ADS_NO_ERROR = ERROR_CODES[0]
+_ADS_SYMBOL_NOT_FOUND_TEXT = ERROR_CODES[_ADS_SYMBOL_NOT_FOUND]
+# A symbol found missing is left out of the sum read and write and reported
+# as an error without a round trip; after this long it is looked up again, so
+# one that an online change or a new download adds is picked up.
+MISSING_RECHECK_SEC = 10.0
 
 # pyads.Connection.read_list_by_name does not raise when one symbol of a sum read
 # fails: it puts the ADS error text (e.g. "symbol not found") in that symbol's slot.
@@ -104,6 +110,10 @@ class AdsDriver(PlcDriver):
         self._published_net_id = None
         self._transport_lost = False
         self.last_read_errors = dict()
+        # Symbols the PLC does not know: name -> monotonic time of the lookup
+        # that said so. Only valid for the connection they were looked up on.
+        self._missing = dict()
+        self._missing_connection = None
 
     # region - Read list
 
@@ -147,23 +157,41 @@ class AdsDriver(PlcDriver):
         """
         Read the symbols in one ADS sum read.
 
-        pyads does not raise when one symbol of a sum read fails: it puts the ADS
-        error text (e.g. "symbol not found") in that symbol's slot. Those go to
-        ReadResult.errors instead of being delivered as the PLC value.
+        Two ways a symbol can fail, both reported in ReadResult.errors while
+        the other symbols are delivered:
+
+        * pyads puts the ADS error text in the symbol's slot of a sum read
+          that went through.
+        * pyads looks each name up before the sum read, and an unknown name
+          (ADS 1808, "symbol not found") fails the whole request. The names
+          are then looked up one by one, the unknown ones are remembered for
+          this connection and left out, and the rest is read. A remembered
+          name costs no round trip; it is looked up again after
+          MISSING_RECHECK_SEC.
         """
         result = ReadResult()
         symbols = list(symbols)
         if not symbols:
             return result
-        structure_defs = {k: v for k, v in self._read_struct_def.items() if k in symbols}
-        connection = self._connection
-        try:
-            data = connection.read_list_by_name(symbols, structure_defs=structure_defs)
-        except pyads.ADSError as e:
-            self._note_transport(connection, e)
-            if getattr(e, "err_code", None) == _ADS_SYMBOL_NOT_FOUND:
-                raise pyads.ADSError(text=f"{e}; one of: {symbols}") from e
-            raise
+        connection = self._require_connection()
+        missing = self._known_missing(connection, symbols)
+        wanted = [s for s in symbols if s not in missing]
+        data = {}
+        if wanted:
+            try:
+                data = self._read_list(connection, wanted)
+            except pyads.ADSError as e:
+                if getattr(e, "err_code", None) != _ADS_SYMBOL_NOT_FOUND:
+                    raise
+                found = self._find_missing(connection, wanted)
+                if not found:
+                    # Every name looks up fine on its own: nothing to leave out.
+                    raise pyads.ADSError(text=f"{e}; one of: {symbols}") from e
+                missing.update(found)
+                wanted = [s for s in wanted if s not in found]
+                if wanted:
+                    data = self._read_list(connection, wanted)
+        result.errors.update(missing)
         for name, value in data.items():
             if isinstance(value, str) and value in _ADS_ERROR_TEXTS:
                 result.errors[name] = value
@@ -176,17 +204,105 @@ class AdsDriver(PlcDriver):
         Write flat symbol -> value in one ADS sum write, e.g.
         {'MAIN.b_Execute': False, 'MAIN.r32_TestReal': 54.321}
 
+        A symbol the PLC does not know (ADS 1808, which pyads raises for the
+        whole request) is rejected and the others are written, as for read.
+
         Returns:
             symbol -> ADS error text for each symbol the PLC rejected; empty when
             all succeeded. pyads reports "no error" per symbol on success.
         """
-        connection = self._connection
+        values = dict(values)
+        if not values:
+            return {}
+        connection = self._require_connection()
+        rejected = self._known_missing(connection, values)
+        good = {name: value for name, value in values.items() if name not in rejected}
+        if not good:
+            return rejected
         try:
-            results = connection.write_list_by_name(dict(values)) or {}
+            results = self._write_list(connection, good)
+        except pyads.ADSError as e:
+            if getattr(e, "err_code", None) != _ADS_SYMBOL_NOT_FOUND:
+                raise
+            found = self._find_missing(connection, list(good))
+            if not found:
+                raise
+            rejected.update(found)
+            good = {name: value for name, value in good.items() if name not in found}
+            results = self._write_list(connection, good) if good else {}
+        rejected.update({name: text for name, text in results.items() if text != _ADS_NO_ERROR})
+        return rejected
+
+    # endregion
+    # region - Requests
+
+    def _require_connection(self):
+        connection = self._connection
+        if connection is None:
+            raise ConnectionError(f"not connected to {self.ams_net_id}")
+        return connection
+
+    def _read_list(self, connection, symbols):
+        structure_defs = {k: v for k, v in self._read_struct_def.items() if k in symbols}
+        try:
+            return connection.read_list_by_name(symbols, structure_defs=structure_defs)
         except pyads.ADSError as e:
             self._note_transport(connection, e)
             raise
-        return {name: text for name, text in results.items() if text != _ADS_NO_ERROR}
+
+    def _write_list(self, connection, values):
+        try:
+            return connection.write_list_by_name(values) or {}
+        except pyads.ADSError as e:
+            self._note_transport(connection, e)
+            raise
+
+    def _known_missing(self, connection, symbols) -> dict:
+        """
+        The symbols among `symbols` already known to be missing on this
+        connection, name -> error text. Entries older than MISSING_RECHECK_SEC
+        are looked up again first.
+        """
+        if connection is not self._missing_connection:
+            # A new connection (the PLC may run a new program): start over.
+            self._missing = dict()
+            self._missing_connection = connection
+        now = time.monotonic()
+        due = [s for s in symbols if s in self._missing and now - self._missing[s] >= MISSING_RECHECK_SEC]
+        if due:
+            self._find_missing(connection, due)
+        return {s: _ADS_SYMBOL_NOT_FOUND_TEXT for s in symbols if s in self._missing}
+
+    def _find_missing(self, connection, symbols) -> dict:
+        """
+        Look each symbol up on its own (an ADS handle by name, released at
+        once) and remember those the PLC does not know.
+
+        Returns:
+            name -> error text for the symbols that are missing.
+
+        Raises:
+            pyads.ADSError: any error other than "symbol not found" (the link
+            is gone, a timeout), after marking a transport error.
+        """
+        found = {}
+        now = time.monotonic()
+        for symbol in symbols:
+            try:
+                handle = connection.get_handle(symbol)
+            except pyads.ADSError as e:
+                if getattr(e, "err_code", None) == _ADS_SYMBOL_NOT_FOUND:
+                    self._missing[symbol] = now
+                    found[symbol] = _ADS_SYMBOL_NOT_FOUND_TEXT
+                    continue
+                self._note_transport(connection, e)
+                raise
+            self._missing.pop(symbol, None)
+            try:
+                connection.release_handle(handle)
+            except pyads.ADSError as e:
+                self._note_transport(connection, e)
+        return found
 
     def _note_transport(self, connection, error):
         """

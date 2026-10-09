@@ -18,6 +18,7 @@ Behaviour (from the shared `plc_bridge` runtime)
 - A read problem is reported once when it changes and `Reading OK` once when it clears, instead of on every scan. A symbol the PLC rejects is reported as `Error Reading: <symbol>: <reason>`, never delivered as a value; a write it rejects as `Error Writing: <symbol>: <reason>`.
 - ADS requests time out after 1 s instead of 5 s, so a PLC that goes away no longer stalls a stage close; a transport-class ADS error marks the link lost, and the bridge reports `Disconnected` and reconnects by itself.
 - Setting the AMS Net Id to the value it already has no longer drops the connection.
+- A symbol the PLC does not know (ADS 1808) no longer fails the whole sum read or write: it is reported as `Error Reading: <symbol>: symbol not found` (or rejected on write) and the other symbols keep flowing. Unknown names are looked up again every 10 s and after a reconnect.
 
 Deprecated (import with a `DeprecationWarning`, also logged; off by default in 0.4, removed in 0.5)
 - `loupe.simulation.beckhoff_bridge.BeckhoffBridge`: re-exports `Manager`, `get_system`, `get_stream_name` and the `EVENT_TYPE_*` constants from the framework, its `Manager` on the 0.2.x bus names. Import from `loupe.simulation.bridge`.
