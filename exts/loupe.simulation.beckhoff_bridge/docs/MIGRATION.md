@@ -121,12 +121,14 @@ When the old names stop working:
 |---|---|---|---|
 | `beckhoff_bridge:*` prim attributes | read, with a warning | off by default, behind a compatibility setting | removed |
 | `loupe.simulation.beckhoff_bridge.*` bus names | on (`legacyBusNames = true`) | off by default; `legacyBusNames = true` keeps them | removed |
-| `BeckhoffBridge`, `Communication`, `global_variables` modules | import, with a warning | off by default, behind a compatibility setting | removed |
+| `BeckhoffBridge`, `Communication`, `global_variables` modules | import, with a warning | still there, import with a warning | removed |
 | USD mirror | on by default | off by default; `bridge:MirrorToUsd = true` per prim | off by default |
 
 "Off by default" means the old name stops working unless the app turns the
-compatibility setting on; with it on, it still warns. Treat 0.4 as the
-deadline.
+compatibility setting on; with it on, it still warns. The deprecated modules
+have no such setting: they stay importable, with their warning, through 0.4.
+`BeckhoffBridge.Manager` follows the bus setting, so with the 0.4 default it
+talks on the neutral names. Treat 0.4 as the deadline.
 
 To find what still depends on the old bus names before 0.4, run the app with
 `--/exts/loupe.simulation.bridge/legacyBusNames=false`: a script that still
@@ -134,7 +136,7 @@ subscribes to the vendor names directly gets no data.
 
 ### Deprecated modules
 
-Like `BeckhoffBridge`, these import through 0.3.x with a `DeprecationWarning`
+Like `BeckhoffBridge`, these import through 0.4.x with a `DeprecationWarning`
 (also logged), and are removed in 0.5.0:
 
 - `Communication`: `CommunicationDriver` and `AdsReadError`, re-exported from

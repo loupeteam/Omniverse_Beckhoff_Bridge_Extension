@@ -129,12 +129,18 @@ half a gigabyte on a 5 GB process; finding 5.
    `{'2': {...}, '3': {...}}`, instead of a list (checked by pushing such a
    payload through the message bus in Kit 110.3). 0.2.x padded arrays the same
    way, so this is not new in 0.3.0, and `on_sample`, `on_sample_main` and
-   `latest()` get the real list. Not fixed; changing the bus payload is a
-   design call (for example, document it, or send sparse arrays as dicts with
-   string keys on purpose and drop the warning).
+   `latest()` get the real list. Not fixed in this run; loupeteam/Omni-Utils#16
+   sends sparse arrays on the bus as dicts with string keys on purpose, which
+   drops the warning (and the memory growth of finding 5).
 5. **Memory grows about 1 MB a minute while data flows** (soak). Native, not
-   Python (tracemalloc); not attributed further. Next step: the same soak with
-   `legacyBusNames` off and with no bus subscriber, to split carb from ADS.
+   Python (tracemalloc). Cause, found after this run: finding 4. carb cannot
+   hold `None` in a bus payload, so every `None` that pads a sparse array
+   logs `Unknown type in sequence being written to item` on every push (about
+   200 warnings a second for the soak's PLC2 with neutral and legacy names),
+   and Kit keeps the log lines. The fix is loupeteam/Omni-Utils#16: the bus
+   sends sparse arrays as index-string dicts, as carb already delivered
+   them. With it, growth fell from about 0.85 MB a minute to under 0.1 in a 15-minute
+   soak on TwinCAT.
 6. **TwinCAT dropped to Config by itself once.** At 15:57 the Windows event
    log shows `TwinCAT system stop completed` and a start into AdsState 15
    (Config) that nothing in this session issued (no XAE was running). It is the
