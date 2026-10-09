@@ -47,13 +47,15 @@ A symbol the PLC rejects is left out of the result and reported in
 `last_read_errors`. When every symbol fails, `read_data` raises `AdsReadError`.
 
 A name the PLC does not know at all fails a pyads sum read or write as a
-whole (ADS error 1808, "symbol not found"). The driver then looks the names up
-one by one, reports the unknown ones (`ReadResult.errors`, `last_read_errors`,
+whole (ADS error 1808, "symbol not found"). The driver then looks up, one by
+one and with the call pyads uses, the names pyads has not cached yet, reports the unknown ones (`ReadResult.errors`, `last_read_errors`,
 or the rejections `write` returns) and reads or writes the rest, so one typo
 in a variable list does not stop the others. The unknown names are remembered
 for the connection and skipped without a round trip; they are looked up again
 every `MISSING_RECHECK_SEC` (10 s) and after a reconnect, so a symbol that an
-online change adds is picked up.
+online change adds is picked up. A 1808 that no single name explains is
+raised, naming the symbols, and not looked into again for 10 s. When every
+name is missing, an ADS state read each scan keeps a lost link visible.
 
 ## Tests
 

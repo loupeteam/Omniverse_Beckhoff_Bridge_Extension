@@ -27,6 +27,8 @@ class PlcConnection:
         self.writes = []
         self.lookups = []
         self.released = []
+        self.states = 0
+        self.state_error = None
 
     def _check(self, names):
         if any(n not in self.known for n in names):
@@ -52,6 +54,12 @@ class PlcConnection:
 
     def release_handle(self, handle):
         self.released.append(handle)
+
+    def read_state(self):
+        self.states += 1
+        if self.state_error:
+            raise pyads.ADSError(err_code=self.state_error)
+        return (5, 0)
 
 
 @pytest.fixture
@@ -175,3 +183,72 @@ def test_runtime_keeps_good_symbols_flowing_and_reports_the_bad_one(driver):
     runtime.scan()
     assert handle.error == NOT_FOUND and good.ok
     assert [p.symbols for p in problems if p.kind == PROBLEM_WRITE] == [("GVL.bad",)]
+
+
+def test_only_names_pyads_has_not_cached_are_looked_up(monkeypatch):
+    names = [f"GVL.v[{i}]" for i in range(500)]
+    plc = PlcConnection({n: i for i, n in enumerate(names)})
+    plc._symbol_info_cache = {n: object() for n in names}  # pyads cached them on earlier reads
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection = plc
+    result = d.read(names + ["GVL.bad"])
+    assert result.errors == {"GVL.bad": NOT_FOUND}
+    assert len(result.values) == 500
+    assert plc.lookups == ["GVL.bad"]
+
+
+def test_lookup_uses_symbol_info_like_pyads(monkeypatch):
+    seen = []
+
+    def info(port, address, name):
+        seen.append((port, address, name))
+        if name == "GVL.bad":
+            raise pyads.ADSError(err_code=1808)
+        return ("info", name)
+
+    monkeypatch.setattr(drv, "adsGetSymbolInfo", info)
+    plc = PlcConnection({"GVL.a": 1})
+    plc._port, plc._adr, plc._symbol_info_cache = 30000, "adr", {}
+    d = AdsDriver("1.2.3.4.1.1")
+    d._connection = plc
+    assert d.read(["GVL.a", "GVL.bad"]).errors == {"GVL.bad": NOT_FOUND}
+    assert [n for _, _, n in seen] == ["GVL.a", "GVL.bad"]
+    assert plc._symbol_info_cache == {"GVL.a": ("info", "GVL.a")}
+    assert plc.lookups == []  # no ADS handles
+
+
+def test_an_unexplained_1808_is_not_looked_up_every_scan(driver, plc, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(drv.time, "monotonic", lambda: clock[0])
+    plc.read_list_by_name = lambda names, structure_defs=None: (_ for _ in ()).throw(pyads.ADSError(err_code=1808))
+    with pytest.raises(pyads.ADSError) as info:
+        driver.read(["GVL.a", "GVL.b"])
+    assert "GVL.a" in str(info.value) and "GVL.b" in str(info.value)
+    assert sorted(plc.lookups) == ["GVL.a", "GVL.b"]
+    plc.lookups.clear()
+    clock[0] += drv.MISSING_RECHECK_SEC - 1
+    with pytest.raises(pyads.ADSError):
+        driver.read(["GVL.a", "GVL.b"])
+    assert plc.lookups == []
+    clock[0] += 2
+    with pytest.raises(pyads.ADSError):
+        driver.read(["GVL.a", "GVL.b"])
+    assert sorted(plc.lookups) == ["GVL.a", "GVL.b"]
+
+
+def test_an_unexplained_1808_on_write_names_the_symbols(driver, plc):
+    plc.write_list_by_name = lambda values: (_ for _ in ()).throw(pyads.ADSError(err_code=1808))
+    with pytest.raises(pyads.ADSError) as info:
+        driver.write({"GVL.a": 1, "GVL.b": 2})
+    assert "GVL.a" in str(info.value) and "GVL.b" in str(info.value)
+
+
+def test_all_missing_still_checks_the_link_every_scan(driver, plc):
+    for _ in range(3):
+        driver.read(["X.a", "X.b"])
+    assert plc.states == 3
+    assert plc.reads == [["X.a", "X.b"]]
+    plc.state_error = 6  # target port not found: the PLC went away
+    with pytest.raises(pyads.ADSError):
+        driver.read(["X.a", "X.b"])
+    assert not driver.is_connected()
