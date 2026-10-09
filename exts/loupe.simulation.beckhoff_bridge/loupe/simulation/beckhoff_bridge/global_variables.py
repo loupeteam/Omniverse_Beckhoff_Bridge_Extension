@@ -1,5 +1,5 @@
 """
-DEPRECATED 0.2.x constants, kept through 0.3.x; removed in 0.5.0.
+DEPRECATED 0.2.x constants: present, with a warning, in 0.3 and 0.4; removed in 0.5.0.
 
 Copyright (c) 2024 Loupe, https://loupe.team
 Part of Omniverse_Beckhoff_Bridge_Extension, licensed under the MIT License.
