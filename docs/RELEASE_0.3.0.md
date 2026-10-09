@@ -137,9 +137,9 @@ half a gigabyte on a 5 GB process; finding 5.
    hold `None` in a bus payload, so every `None` that pads a sparse array
    logs `Unknown type in sequence being written to item` on every push (about
    200 warnings a second for the soak's PLC2 with neutral and legacy names),
-   and Kit keeps the log lines. Fixed by loupeteam/Omni-Utils#16 (open; the bus
+   and Kit keeps the log lines. The fix is loupeteam/Omni-Utils#16: the bus
    sends sparse arrays as index-string dicts, as carb already delivered
-   them): growth fell from about 0.85 MB a minute to under 0.1 in a 15-minute
+   them. With it, growth fell from about 0.85 MB a minute to under 0.1 in a 15-minute
    soak on TwinCAT.
 6. **TwinCAT dropped to Config by itself once.** At 15:57 the Windows event
    log shows `TwinCAT system stop completed` and a start into AdsState 15
