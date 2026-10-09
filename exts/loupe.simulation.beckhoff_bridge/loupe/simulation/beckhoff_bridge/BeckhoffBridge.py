@@ -1,5 +1,5 @@
 """
-DEPRECATED 0.2.x import path, kept through 0.3.x.
+DEPRECATED 0.2.x import path: present, with a warning, in 0.3 and 0.4; removed in 0.5.
 
 Copyright (c) 2024 Loupe, https://loupe.team
 Part of Omniverse_Beckhoff_Bridge_Extension, licensed under the MIT License.
@@ -19,9 +19,8 @@ import logging
 import warnings
 
 from loupe.simulation.bridge import Manager as _Manager
-from loupe.simulation.bridge import get_system  # noqa: F401
-from loupe.simulation.bridge.BridgeManager import Manager_Events as _Events
-from loupe.simulation.bridge.bus import BUS_NAMESPACE, get_stream_name, legacy_bus_names_enabled  # noqa: F401
+from loupe.simulation.bridge import Manager_Events as _Events
+from loupe.simulation.bridge import BUS_NAMESPACE, get_stream_name, get_system, legacy_bus_names_enabled  # noqa: F401
 
 from .extension import LEGACY_NAMESPACE
 
