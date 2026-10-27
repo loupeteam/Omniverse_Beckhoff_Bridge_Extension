@@ -22,7 +22,7 @@ framework builds one settings field per option, so no UI panel is registered.
 
 import omni.ext
 from beckhoff_bridge import AdsDriver
-from loupe.simulation.bridge import Option, registry
+from loupe.simulation.bridge import Option, check_extension_requirements, registry
 
 DRIVER_NAME = "beckhoff"
 LEGACY_NAMESPACE = "beckhoff_bridge"
@@ -44,6 +44,9 @@ def unregister():
 
 class Extension(omni.ext.IExt):
     def on_startup(self, ext_id: str):
+        # Kit's pip installer only checks that beckhoff_bridge imports; log an
+        # error when the one it found is not the version this extension pins.
+        check_extension_requirements(ext_id)
         register()
 
     def on_shutdown(self):

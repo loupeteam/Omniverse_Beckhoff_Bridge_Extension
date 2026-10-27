@@ -106,11 +106,18 @@ def test_read_passes_only_the_struct_defs_it_needs():
 
 
 def test_symbol_not_found_for_the_whole_read_names_the_symbols():
+    """A 1808 that no single name explains (each looks up fine) still fails the read."""
     import pyads
 
     class Conn:
         def read_list_by_name(self, names, structure_defs=None):
             raise pyads.ADSError(err_code=1808)
+
+        def get_handle(self, name):
+            return 1
+
+        def release_handle(self, handle):
+            pass
 
     d = AdsDriver("1.2.3.4.1.1")
     d._connection = Conn()
@@ -259,6 +266,9 @@ def test_request_errors_do_not_mark_the_link_lost():
 
         def read_list_by_name(self, names, structure_defs=None):
             raise pyads.ADSError(err_code=1808)  # symbol not found
+
+        def get_handle(self, name):
+            raise pyads.ADSError(err_code=1793)  # service not supported: a request error, not the link
 
     d = AdsDriver("1.2.3.4.1.1")
     d._connection = Conn()

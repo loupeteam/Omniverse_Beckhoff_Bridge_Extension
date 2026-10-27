@@ -3,7 +3,7 @@ reloadable = true
 order = 0
 
 [package]
-version = "0.3.0-rc1"
+version = "0.3.0"
 category = "simulation"
 title = "Beckhoff Bridge"
 description = "Beckhoff PLC driver (ADS) for the Loupe PLC bridge: registers the driver with loupe.simulation.bridge, which owns the /PLC prims, the runtimes, the bus and the UI."
@@ -30,7 +30,7 @@ icon = "data/icon.png"
 # at this repo's root). plc-bridge comes in through the framework, which owns
 # its exact pin: Kit installs every extension's pip requirements into one
 # site-packages and does not resolve conflicts, so there is one owner.
-requirements = ["pyads", "beckhoff-bridge>=0.3.0rc1,<0.4"]
+requirements = ["pyads", "beckhoff-bridge>=0.3.0,<0.4"]
 # What to import to decide whether a requirement is already satisfied. pipapi
 # tries this import first and calls pip only when it fails, so a checkout
 # installed into Kit's Python by tools/dev_link.py takes precedence over the
