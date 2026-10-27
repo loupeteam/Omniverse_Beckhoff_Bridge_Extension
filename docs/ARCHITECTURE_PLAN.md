@@ -46,11 +46,16 @@ No `omni` or `carb` imports anywhere in this layer; installable with pip.
 **`plc_bridge`, the shared contract.** Vendor-neutral. Holds:
 
 - The abstract driver interface every vendor implements: `connect`,
-  `disconnect`, `read(symbols) -> dict`, `write(symbol, value)`, and per-symbol
-  errors reported as data, never as a value.
-- The polling runtime that is already vendor-agnostic: read and write threads,
-  refresh rate, variable list, callbacks. This is today's `RuntimeBase` with the
-  carb bus publish replaced by a plain callback.
+  `disconnect`, `is_connected`, `read(symbols) -> ReadResult` (flat values and
+  per-symbol errors), `write(values) -> rejected` (a batch of symbol -> value;
+  returns the symbols the PLC rejected), and `close()` for what the driver
+  holds for its whole life. Per-symbol errors are reported as data, never as a
+  value.
+- The polling runtime: one worker thread per PLC that flushes queued writes
+  and then reads, every refresh period; the variable list; listeners for
+  samples, problems, connection changes and write results; `latest()`. It
+  replaced the 0.2.x `RuntimeBase` with its separate read and write threads
+  and its carb bus publish.
 
 The contract lives here, below Kit, so that two vendor libraries can be swapped
 without the framework extension present.
@@ -103,9 +108,10 @@ Depend on the framework extension only. Declare PLCs as prims. Consume data via
 
 ## The USD mirror
 
-Split out of the core into an opt-in component of the framework (or a separate
-extension). It subscribes to the same bus events any user would, so its output
-is unchanged. Plan:
+Split out of the core into an opt-in component of the framework. It does not
+listen to the bus: it takes the newest sample once per app update through the
+framework's main-thread delivery (`on_sample_main`), the path any Kit consumer
+uses, so its output is unchanged from 0.2.x. Plan:
 
 1. First framework release: mirror present, default **on**, changelog note.
 2. Following release: default **off**, enabled per PLC prim with the existing
@@ -181,9 +187,11 @@ same shape. The three real differences, and how the contract absorbs them:
 | Only ADS reports per-symbol failures | `ReadResult` has `values` and `errors`. A driver that cannot tell leaves `errors` empty. A failed request raises. |
 
 Also fixed by the contract: the read list belongs to the runtime and is passed
-with each `read`; `read` and `write` may be called from two threads at once and
-the driver makes that safe (ADS uses two connections; a single websocket would
-use a lock).
+with each `read`. As first written, `read` and `write` could come from two
+threads at once (ADS used two connections). Since the architecture review below
+there is one worker per PLC: `connect`, `read` and `write` come from that one
+thread in turn, only `disconnect` may arrive from another thread while a call
+is in flight, and the ADS driver uses one connection.
 
 ## Decisions (2026-10-06)
 

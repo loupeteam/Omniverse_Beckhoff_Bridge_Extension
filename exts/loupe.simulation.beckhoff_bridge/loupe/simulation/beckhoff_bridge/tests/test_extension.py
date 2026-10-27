@@ -50,6 +50,15 @@ class TestRegistration(omni.kit.test.AsyncTestCase):
         default = registry.get("beckhoff").create_driver({})
         self.assertEqual(default.ams_net_id, "127.0.0.1.1.1")
 
+    async def test_pinned_library_versions_match(self):
+        import omni.kit.app
+        from loupe.simulation.bridge import check_extension_requirements
+        manager = omni.kit.app.get_app().get_extension_manager()
+        ext_id = manager.get_enabled_extension_id("loupe.simulation.beckhoff_bridge")
+        logged = []
+        self.assertEqual(check_extension_requirements(ext_id, log=logged.append), [])
+        self.assertEqual(logged, [])
+
     async def test_unregister_leaves_a_foreign_registration(self):
         class Other(AdsDriver):
             pass
