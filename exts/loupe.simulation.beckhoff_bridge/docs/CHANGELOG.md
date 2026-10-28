@@ -4,18 +4,21 @@
 See MIGRATION.md for upgrading from 0.2.x. A 0.2.x stage and script keep working, with deprecation warnings.
 
 Architecture
-- The extension is now a driver for the framework extension `loupe.simulation.bridge` (Omni-Utils), which it depends on (`0.3.x`). The framework owns the `/PLC` prims, the runtimes, the message bus, the USD mirror and the window (`Loupe / PLC Bridge`). This extension registers `beckhoff_bridge.AdsDriver` with it as driver `beckhoff`, with one option, `AmsNetId`; the window's Beckhoff fields come from that option schema.
+- The extension is now a driver for the framework extension `loupe.simulation.bridge` (Omni-Utils), which it depends on (`0.3.x`). The framework owns the `/PLC` prims, the runtimes, the message bus, the USD mirror and the window (`Loupe / PLC Bridge`). This extension registers `beckhoff_bridge.AdsDriver` with it as driver `beckhoff`, with one option, `amsNetId` (prim attribute `beckhoff:amsNetId`); the window's Beckhoff fields come from that option schema.
 - The ADS driver is the plain-Python `beckhoff_bridge` package at the repo root, with no Omniverse dependency and its own pytest suite. It implements the `plc_bridge.PlcDriver` contract and opens one ADS connection per PLC. `CommunicationDriver` is an alias of `AdsDriver` there.
 - The `loupe/simulation/common` submodule is gone; nothing is vendored any more.
 
 Prims and bus
-- Neutral prim attributes: `bridge:driver = "beckhoff"`, `bridge:Enable`, `bridge:RefreshRate`, `bridge:Variables` (`string[]`), `bridge:MirrorToUsd`, `beckhoff:AmsNetId`. 0.2.x prims with `beckhoff_bridge:*` attributes are still read, with a warning once per prim.
+- Neutral prim attributes, lowerCamelCase as USD names properties: `bridge:driver = "beckhoff"`, `bridge:enable`, `bridge:periodMs` (the scan period in ms; 0.2.x called it `RefreshRate`), `bridge:variables` (`string[]`), `bridge:mirrorToUsd`, `bridge:mirrorSymbols`, `beckhoff:amsNetId`. 0.2.x prims with `beckhoff_bridge:*` attributes are still read, with a warning once per prim.
 - Neutral bus names `loupe.simulation.bridge.<KIND>.<plc>`; `STATUS` carries `{"kind", "text", "symbols"}`. The 0.2.x names `loupe.simulation.beckhoff_bridge.*` are still pushed and accepted, with the 0.2.x payloads, while the framework setting `legacyBusNames` is on (the 0.3 default).
 
 Behaviour (from the shared `plc_bridge` runtime)
 - One worker thread per PLC: each scan flushes queued writes, then reads, so the sample after a write reflects it; a queued write wakes the loop.
 - Besides the bus: `on_sample_main` (newest sample on the main thread once per frame), `on_sample` and `latest()` (a `Sample` with sequence number, time, flat values, per-symbol errors), structured problems, and write acknowledgement (`queue_write` returns a handle).
 - A read problem is reported once when it changes and `Reading OK` once when it clears, instead of on every scan. A symbol the PLC rejects is reported as `Error Reading: <symbol>: <reason>`, never delivered as a value; a write it rejects as `Error Writing: <symbol>: <reason>`.
+- A write queued while the PLC is disconnected or disabled fails at once with `"not connected"` instead of waiting for the next connection; so does a write still pending when the link drops or the PLC is disabled.
+- `Sample.values`, `Sample.errors` and `Sample.nested` are read-only (arrays in `nested` are tuples).
+- Per-symbol errors carry a standard code (`plc_bridge.SymbolError`, a `str` with `.code`): ADS 1808 is `missing`; any other per-symbol ADS error is `rejected` on a write and `other` on a read. `Sample.missing` lists the missing symbols.
 - ADS requests time out after 1 s instead of 5 s, so a PLC that goes away no longer stalls a stage close; a transport-class ADS error marks the link lost, and the bridge reports `Disconnected` and reconnects by itself.
 - Setting the AMS Net Id to the value it already has no longer drops the connection.
 - A symbol the PLC does not know (ADS 1808) no longer fails the whole sum read or write: it is reported as `Error Reading: <symbol>: symbol not found` (or rejected on write) and the other symbols keep flowing. Unknown names are looked up again every 10 s and after a reconnect.

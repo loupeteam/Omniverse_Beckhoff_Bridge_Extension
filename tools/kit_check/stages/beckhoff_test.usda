@@ -27,9 +27,9 @@ def Scope "PLC"
     def Scope "PLC2"
     {
         custom string bridge:driver = "beckhoff"
-        custom bool bridge:Enable = false
-        custom int bridge:RefreshRate = 20
-        custom string[] bridge:Variables = ["GVL_Moonlight.Axes[2].ActualPosition", "GVL_Moonlight.Axes[3].ActualPosition", "GVL_Moonlight.Command.Blend"]
-        custom string beckhoff:AmsNetId = "127.0.0.1.1.1"
+        custom bool bridge:enable = false
+        custom int bridge:periodMs = 20
+        custom string[] bridge:variables = ["GVL_Moonlight.Axes[2].ActualPosition", "GVL_Moonlight.Axes[3].ActualPosition", "GVL_Moonlight.Command.Blend"]
+        custom string beckhoff:amsNetId = "127.0.0.1.1.1"
     }
 }

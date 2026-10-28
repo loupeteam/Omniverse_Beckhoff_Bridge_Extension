@@ -39,12 +39,12 @@ class TestRegistration(omni.kit.test.AsyncTestCase):
         self.assertIs(spec.driver_class, AdsDriver)
         self.assertEqual(spec.namespace, "beckhoff")
         self.assertEqual(spec.legacy_namespace, "beckhoff_bridge")
-        self.assertEqual([o.key for o in spec.options], ["AmsNetId"])
-        self.assertEqual(spec.attribute("AmsNetId"), "beckhoff:AmsNetId")
-        self.assertEqual(spec.legacy_attribute("AmsNetId"), "beckhoff_bridge:AmsNetId")
+        self.assertEqual([o.key for o in spec.options], ["amsNetId"])
+        self.assertEqual(spec.attribute("amsNetId"), "beckhoff:amsNetId")
+        self.assertEqual(spec.legacy_attribute("amsNetId"), "beckhoff_bridge:AmsNetId")
 
     async def test_builds_ads_driver_from_options(self):
-        driver = registry.get("beckhoff").create_driver({"AmsNetId": "10.0.0.1.1.1"})
+        driver = registry.get("beckhoff").create_driver({"amsNetId": "10.0.0.1.1.1"})
         self.assertIsInstance(driver, AdsDriver)
         self.assertEqual(driver.ams_net_id, "10.0.0.1.1.1")
         default = registry.get("beckhoff").create_driver({})
