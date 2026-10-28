@@ -19,13 +19,20 @@ changing the driver on the prim, with no change to the simulation.
 **A 0.2.x stage and script run unchanged.** They log the deprecation warnings
 described below. Nothing has to be done for 0.3; do the steps before 0.4.
 
+One behaviour change reaches unchanged 0.2.x scripts: **a write sent while the
+PLC is not connected (or not enabled) is dropped, not held for the
+connection.** A script that writes initial values right after enabling, before
+the PLC is up, loses them; the bridge logs one warning naming the symbols.
+Write again on the `CONNECTION` event (`"Connected"`), or from the data
+callback.
+
 ### What changed
 
 | | 0.2.x | 0.3.0 |
 |---|---|---|
 | Extensions | `loupe.simulation.beckhoff_bridge` | the same, plus `loupe.simulation.bridge`, which it pulls in as a dependency |
 | Menu entry and window | `Loupe / Beckhoff Bridge` | `Loupe / PLC Bridge`, one window for every PLC of every vendor |
-| PLC prim | `beckhoff_bridge:AmsNetId`, `:Enable`, `:RefreshRate`, `:Variables` (a comma-separated string) | `bridge:driver = "beckhoff"`, `bridge:Enable`, `bridge:RefreshRate`, `bridge:Variables` (a `string[]`), `beckhoff:AmsNetId` |
+| PLC prim | `beckhoff_bridge:AmsNetId`, `:Enable`, `:RefreshRate`, `:Variables` (a comma-separated string) | `bridge:driver = "beckhoff"`, `bridge:enable`, `bridge:periodMs`, `bridge:variables` (a `string[]`), `beckhoff:amsNetId` |
 | Python import | `from loupe.simulation.beckhoff_bridge import BeckhoffBridge` | `from loupe.simulation.bridge import Manager, get_system, get_plc, on_sample_main` |
 | Bus events | `loupe.simulation.beckhoff_bridge.<KIND>.<plc>` | `loupe.simulation.bridge.<KIND>.<plc>`; `STATUS` carries `{"kind", "text", "symbols"}` instead of text |
 | Getting data | bus callbacks on the worker thread | also `on_sample_main` (main thread, once per frame), `get_plc(name).on_sample` and `.latest()`; see Omni-Utils `docs/CONSUMING.md` |
@@ -51,10 +58,10 @@ def Scope "PLC1"
 def Scope "PLC1"
 {
     custom string bridge:driver = "beckhoff"
-    custom bool bridge:Enable = true
-    custom int bridge:RefreshRate = 20
-    custom string[] bridge:Variables = ["MAIN.var1", "MAIN.arr[0]"]
-    custom string beckhoff:AmsNetId = "127.0.0.1.1.1"
+    custom bool bridge:enable = true
+    custom int bridge:periodMs = 20
+    custom string[] bridge:variables = ["MAIN.var1", "MAIN.arr[0]"]
+    custom string beckhoff:amsNetId = "127.0.0.1.1.1"
 }
 ```
 
@@ -92,13 +99,30 @@ For Kit code that touches the stage or the UI, prefer `on_sample_main`: it
 calls back on the main thread once per frame with the newest sample, where the
 bus calls back on the PLC's worker thread.
 
+Three behaviours to know when moving a script to the 0.3 API:
+
+- **A write is never held for a later connection.** `write_variable` /
+  `queue_write` while the PLC is disconnected or disabled is dropped, and its
+  handle (from `queue_write`) resolves with `error == "not connected"`; so is a
+  write still pending when the link drops or the PLC is disabled. Write again
+  once the `CONNECTION` event says `Connected`.
+- **A `Sample` is read-only.** `sample.values` and `sample.errors` are
+  read-only mappings and `sample.nested` is read-only all the way down, with
+  arrays as tuples. Copy before changing (`dict(sample.values)`,
+  `plc_bridge.thaw(sample.nested)`). Bus payloads are plain copies, as before.
+- **Per-symbol errors carry a code.** Each entry of `sample.errors` (and of a
+  write's errors) is a `str` with `.code`: `missing` for ADS 1808 (symbol not
+  found), `rejected` for any other per-symbol error on a write, `other` for
+  any other per-symbol error on a read. `sample.missing` lists the missing
+  symbols. Branch on the code, not on the ADS text.
+
 ### Step 3: the USD mirror
 
 The mirror (values as prims below the PLC prim, with `write:*` attributes) is
 on by default in 0.3 and turns **off by default in 0.4**. A stage that relies
-on it should say so now with `custom bool bridge:MirrorToUsd = true` on the PLC
+on it should say so now with `custom bool bridge:mirrorToUsd = true` on the PLC
 prim. A stage that does not use it can opt out now with `false` and save the
-mirror's cost. `bridge:MirrorSymbols` (`string[]`) limits the mirror to a watch
+mirror's cost. `bridge:mirrorSymbols` (`string[]`) limits the mirror to a watch
 list.
 
 ### The deprecation warnings
@@ -122,7 +146,7 @@ When the old names stop working:
 | `beckhoff_bridge:*` prim attributes | read, with a warning | off by default, behind a compatibility setting | removed |
 | `loupe.simulation.beckhoff_bridge.*` bus names | on (`legacyBusNames = true`) | off by default; `legacyBusNames = true` keeps them | removed |
 | `BeckhoffBridge`, `Communication`, `global_variables` modules | import, with a warning | still there, import with a warning | removed |
-| USD mirror | on by default | off by default; `bridge:MirrorToUsd = true` per prim | off by default |
+| USD mirror | on by default | off by default; `bridge:mirrorToUsd = true` per prim | off by default |
 
 "Off by default" means the old name stops working unless the app turns the
 compatibility setting on; with it on, it still warns. The deprecated modules
