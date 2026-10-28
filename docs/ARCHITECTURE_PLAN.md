@@ -115,7 +115,7 @@ uses, so its output is unchanged from 0.2.x. Plan:
 
 1. First framework release: mirror present, default **on**, changelog note.
 2. Following release: default **off**, enabled per PLC prim with the existing
-   `bridge:MirrorToUsd` attribute.
+   `bridge:mirrorToUsd` attribute.
 3. Consider mirroring a chosen watch list of symbols instead of every symbol read.
 
 Rationale: nothing inside the extension consumes the mirror; the UI, harness and
@@ -262,9 +262,9 @@ bus namespace and sample type are designed against two vendors, not one.
    - "in one call" rather than "in one request": drivers may batch.
 3. **Framework extension** (`loupe.simulation.bridge`): driver registry (driver
    class, option schema, defaults, optional settings panel); neutral prim
-   schema `bridge:driver`, `bridge:Enable`, `bridge:RefreshRate`,
-   `bridge:Variables` (a string array), `bridge:MirrorToUsd`, with vendor
-   keys in a vendor namespace (`beckhoff:AmsNetId`, `br:Host`); PLC prims
+   schema `bridge:driver`, `bridge:enable`, `bridge:periodMs`,
+   `bridge:variables` (a string array), `bridge:mirrorToUsd`, with vendor
+   keys in a vendor namespace (`beckhoff:amsNetId`, `br:host`); PLC prims
    identified by a marker, `/PLC/<name>` a convention; neutral bus namespace
    with the bus as one listener among others; `latest()` and the per-frame
    callback; the mirror as a registered component with a watch list; an
@@ -284,6 +284,48 @@ data, never as values; synchronous, bounded, daemon threads with a bounded
 per-driver separators; the session-layer mirror never dirtying the stage;
 prim-based multi-PLC config that works headless; the thin adapter exposing the
 library object; the lifecycle tests as external guarantees.
+
+## 0.4 compatibility switches (proposal)
+
+**Status: proposal, for Scott's review. Nothing below is implemented except
+the existing `legacyBusNames` setting.**
+
+Decision 2 (2026-10-06) keeps every vendor-named surface for one release:
+neutral in 0.3, off by default in 0.4, gone in 0.5. In 0.4 each surface is
+behind its own setting, so a project that still needs one can switch it back
+on while it migrates, and the default tells everyone else it is going.
+
+| Surface | What the switch keeps | Proposed setting under `/exts/loupe.simulation.bridge/` | 0.3 | 0.4 | 0.5 |
+|---|---|---|---|---|---|
+| Legacy bus names | pushes and requests on `loupe.simulation.beckhoff_bridge.*` / `loupe.simulation.br_bridge.*` | `legacyBusNames` (exists) | on | off | removed |
+| Legacy prim attributes | discovery of prims with `beckhoff_bridge:*` / `br_bridge:*` and no `bridge:driver`, with the deprecation warning | `legacyPrimAttributes` | on | off | removed |
+| Legacy module imports | the deprecated re-exports in the vendor extensions (`loupe.simulation.beckhoff_bridge.Communication`, `global_variables`, `BeckhoffBridge`; the B&R equivalents; `Manager()` without a name) | `legacyModules` | on | off | removed |
+
+Proposed behaviour:
+
+- A setting that is off makes the surface absent, not broken: legacy prims are
+  listed in the UI as "legacy attributes, switched off" (like an unresolved
+  driver), and a legacy import raises an ImportError whose text names the
+  setting and MIGRATION.md.
+- A setting that is on in 0.4 logs one deprecation warning per surface per
+  session, as 0.3 does today.
+- The settings are read at use (prim discovery, bus adapter creation, module
+  import), so a `.kit` file or `--/exts/...` flag is enough; no UI.
+- 0.5 drops the code and the settings; a setting left in a `.kit` file is
+  ignored.
+
+Open questions:
+
+1. Should one umbrella setting (`legacy = true`) switch all three, with the
+   per-surface settings as overrides? Simpler for users, one more rule.
+2. Module imports are evaluated when the vendor extension loads. Is a setting
+   read at import time acceptable, or should 0.4 keep the modules importable
+   and only warn louder?
+3. Does `Manager()` without a name belong with the module imports, or does it
+   go in 0.4 outright (it was deprecated in 0.2.0 already)?
+4. Is there a customer stage or script outside Loupe that still needs a
+   surface in 0.5? If so, that surface stays behind its setting for one more
+   release instead.
 
 ## Open questions
 
