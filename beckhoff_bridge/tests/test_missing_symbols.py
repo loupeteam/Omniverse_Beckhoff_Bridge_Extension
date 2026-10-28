@@ -144,8 +144,10 @@ def test_a_lookup_that_fails_for_another_reason_raises(driver, plc):
 
 
 def test_write_rejects_the_unknown_symbol_and_writes_the_rest(driver, plc):
+    from plc_bridge import ERROR_MISSING
     rejected = driver.write({"GVL.a": 5, "GVL.bad": 1, "GVL.b": 0.5})
     assert rejected == {"GVL.bad": NOT_FOUND}
+    assert rejected["GVL.bad"].code == ERROR_MISSING     # found by the lookup after the 1808
     assert plc.known["GVL.a"] == 5 and plc.known["GVL.b"] == 0.5
     assert plc.writes[-1] == {"GVL.a": 5, "GVL.b": 0.5}
 
@@ -281,6 +283,13 @@ def test_a_per_symbol_write_error_is_rejected(driver, plc):
     assert list(rejected) == ["GVL.b"]
     assert rejected["GVL.b"].code == ERROR_REJECTED
     assert rejected["GVL.b"] == drv.ERROR_CODES[1793]   # the ADS text is kept
+
+
+def test_a_per_symbol_1808_on_write_is_missing(driver, plc):
+    from plc_bridge import ERROR_MISSING
+    plc.write_list_by_name = lambda values: {"GVL.a": "no error", "GVL.b": drv.ERROR_CODES[1808]}
+    rejected = driver.write({"GVL.a": 1, "GVL.b": 2})
+    assert list(rejected) == ["GVL.b"] and rejected["GVL.b"].code == ERROR_MISSING
 
 
 def test_sample_missing_lists_the_1808_symbols(driver):

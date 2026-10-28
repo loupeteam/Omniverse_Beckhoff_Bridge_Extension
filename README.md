@@ -89,7 +89,9 @@ next start. `python tools/dev_link.py <kit build root> --uninstall [--plc-bridge
   missing from the folder fails the archive attempt silently and pip falls through
   to the index. `<env>` is `%LOCALAPPDATA%\ov\data\Kit\<app name>\<app
   version>\pip3-envs\default-<python>`; delete it to force a reinstall, for
-  example after rebuilding the wheels under the same version. The import check
+  example after rebuilding the wheels under the same version. Delete the whole
+  folder: removing only the package folders leaves pipapi's `.install_cache.json`,
+  which still marks the requirement installed, and the import then fails. The import check
   never looks at the version either, so the same applies to an upgrade: an app
   that once installed `plc-bridge` / `beckhoff-bridge` 0.3.0rc1 keeps running
   the rc1 code under the 0.3.0 extensions until that folder is deleted

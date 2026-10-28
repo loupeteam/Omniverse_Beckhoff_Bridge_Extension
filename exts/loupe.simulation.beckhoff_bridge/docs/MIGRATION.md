@@ -19,6 +19,13 @@ changing the driver on the prim, with no change to the simulation.
 **A 0.2.x stage and script run unchanged.** They log the deprecation warnings
 described below. Nothing has to be done for 0.3; do the steps before 0.4.
 
+One behaviour change reaches unchanged 0.2.x scripts: **a write sent while the
+PLC is not connected (or not enabled) is dropped, not held for the
+connection.** A script that writes initial values right after enabling, before
+the PLC is up, loses them; the bridge logs one warning naming the symbols.
+Write again on the `CONNECTION` event (`"Connected"`), or from the data
+callback.
+
 ### What changed
 
 | | 0.2.x | 0.3.0 |
