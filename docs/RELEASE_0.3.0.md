@@ -14,6 +14,20 @@ documentation:
 Nothing is merged to `main`, tagged or published. Steps 5.3 (architecture
 review) and 5.4 (merge, tag, publish) are still open.
 
+## API decisions applied after this run (2026-10-28)
+
+Scott's 0.3.0 API decisions landed on `rc/0.3.0` after the verification above
+(draft PRs `feat/api-decisions` in all three repos): lowerCamelCase neutral
+attributes and option keys (`bridge:periodMs` replaces `bridge:RefreshRate`),
+writes queued while disconnected or disabled fail with `"not connected"`,
+read-only `Sample` dicts, the public System subset, standard symbol error
+codes (`missing` / `rejected` / `other`), and the framework pin as a range.
+
+**The framework pin is a range: `plc-bridge>=0.3.0,<0.4`.** Raise the lower
+bound with each framework release (0.3.1 pins `plc-bridge>=0.3.1,<0.4`), so the
+startup version check reports a stale `plc-bridge` left in Kit's pip folder by
+an earlier install. The check reads every clause of the range.
+
 ## Environment
 
 - Windows 11; Python 3.12 and 3.11 from python.org. Python 3.10 runs only in CI.
@@ -85,7 +99,7 @@ drop; private bytes 7,780 to 7,802 MB). Two control runs separate it:
 | Run | Working set | Private bytes |
 |---|---|---|
 | Same app and stage, both PLCs left disabled, 12 min | 5,080 -> 5,069 MB (falls) | 7,894 -> 7,834 MB |
-| Both PLCs enabled, mirror off (`bridge:MirrorToUsd = false`), 15 min | 5,042 -> 5,052 MB over the last 10 min | 7,748 -> 7,757 MB |
+| Both PLCs enabled, mirror off (`bridge:mirrorToUsd = false`), 15 min | 5,042 -> 5,052 MB over the last 10 min | 7,748 -> 7,757 MB |
 
 So the growth follows the data, at about 1 MB a minute for 100 samples a
 second, with or without the mirror. A third run (mirror off, 8 min) traced

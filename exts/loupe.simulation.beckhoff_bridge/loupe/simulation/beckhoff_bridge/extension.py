@@ -15,7 +15,7 @@ Extension entry point: registers the ADS driver with the PLC bridge framework.
 Everything a simulation touches (the /PLC prims, the polling runtimes, the
 message bus, the USD mirror, the window) lives in `loupe.simulation.bridge`.
 This extension only tells it how to build a `beckhoff_bridge.AdsDriver` from a
-PLC prim: prims with `bridge:driver = "beckhoff"` and `beckhoff:AmsNetId`, and
+PLC prim: prims with `bridge:driver = "beckhoff"` and `beckhoff:amsNetId`, and
 the 0.2.x prims that carry `beckhoff_bridge:*` attributes instead. The
 framework builds one settings field per option, so no UI panel is registered.
 """
@@ -26,7 +26,7 @@ from loupe.simulation.bridge import Option, check_extension_requirements, regist
 
 DRIVER_NAME = "beckhoff"
 LEGACY_NAMESPACE = "beckhoff_bridge"
-OPTIONS = [Option("AmsNetId", "str", "127.0.0.1.1.1", "PLC AMS Net Id")]
+OPTIONS = [Option("amsNetId", "str", "127.0.0.1.1.1", "PLC AMS Net Id")]
 
 
 def register():

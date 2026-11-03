@@ -15,7 +15,7 @@ import pyads
 from pyads.errorcodes import ERROR_CODES
 from pyads.pyads_ex import adsGetSymbolInfo
 
-from plc_bridge import PlcDriver, ReadResult, nest_symbol
+from plc_bridge import ERROR_MISSING, ERROR_OTHER, ERROR_REJECTED, PlcDriver, ReadResult, SymbolError, nest_symbol
 
 # ADS error code for "symbol not found"
 _ADS_SYMBOL_NOT_FOUND = 1808
@@ -39,6 +39,15 @@ MISSING_RECHECK_SEC = 10.0
 # Delivered as data, that string would be mirrored, compared and written back as if
 # it were the PLC value. Recognise those strings and report them separately.
 _ADS_ERROR_TEXTS = frozenset(ERROR_CODES.values())
+
+
+def _symbol_error(text: str, default_code: str) -> SymbolError:
+    """
+    An ADS per-symbol error text with its standard code: 1808 ("symbol not
+    found") is ERROR_MISSING, anything else `default_code` (ERROR_OTHER for a
+    read, ERROR_REJECTED for a write, where the PLC refused the value).
+    """
+    return SymbolError(text, ERROR_MISSING if text == _ADS_SYMBOL_NOT_FOUND_TEXT else default_code)
 
 
 class AdsReadError(Exception):
@@ -197,10 +206,10 @@ class AdsDriver(PlcDriver):
             # Nothing was sent to the PLC this scan: ask it something cheap so
             # a dropped link is still noticed at the scan rate.
             self._check_alive(connection)
-        result.errors.update(missing)
+        result.errors.update({name: SymbolError(text, ERROR_MISSING) for name, text in missing.items()})
         for name, value in data.items():
             if isinstance(value, str) and value in _ADS_ERROR_TEXTS:
-                result.errors[name] = value
+                result.errors[name] = _symbol_error(value, ERROR_OTHER)
             else:
                 result.values[name] = value
         return result
@@ -214,14 +223,17 @@ class AdsDriver(PlcDriver):
         whole request) is rejected and the others are written, as for read.
 
         Returns:
-            symbol -> ADS error text for each symbol the PLC rejected; empty when
-            all succeeded. pyads reports "no error" per symbol on success.
+            symbol -> SymbolError (the ADS error text; code ERROR_MISSING for
+            1808, ERROR_REJECTED for any other per-symbol error) for each
+            symbol the PLC failed; empty when all succeeded. pyads reports
+            "no error" per symbol on success.
         """
         values = dict(values)
         if not values:
             return {}
         connection = self._require_connection()
-        rejected = self._known_missing(connection, values)
+        rejected = {name: SymbolError(text, ERROR_MISSING)
+                    for name, text in self._known_missing(connection, values).items()}
         good = {name: value for name, value in values.items() if name not in rejected}
         if not good:
             return rejected
@@ -231,10 +243,11 @@ class AdsDriver(PlcDriver):
             if getattr(e, "err_code", None) != _ADS_SYMBOL_NOT_FOUND:
                 raise
             found = self._explain_not_found(connection, list(good), e)
-            rejected.update(found)
+            rejected.update({name: SymbolError(text, ERROR_MISSING) for name, text in found.items()})
             good = {name: value for name, value in good.items() if name not in found}
             results = self._write_list(connection, good) if good else {}
-        rejected.update({name: text for name, text in results.items() if text != _ADS_NO_ERROR})
+        rejected.update({name: _symbol_error(text, ERROR_REJECTED)
+                         for name, text in results.items() if text != _ADS_NO_ERROR})
         return rejected
 
     # endregion

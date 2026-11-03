@@ -80,7 +80,7 @@ height = 1080
 registryEnabled = true
 
 # The bridge is configured by the stage: prims under /PLC carrying
-# bridge:driver = "beckhoff" and beckhoff:AmsNetId, or the 0.2.x
+# bridge:driver = "beckhoff" and beckhoff:amsNetId, or the 0.2.x
 # beckhoff_bridge:* attributes. kit_check.py enables communication itself, so
 # the stage ships Enable = false.
 

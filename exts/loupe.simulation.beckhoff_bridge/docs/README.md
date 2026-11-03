@@ -29,10 +29,10 @@ def Scope "PLC"
     def Scope "PLC1"
     {
         custom string bridge:driver = "beckhoff"
-        custom bool bridge:Enable = true
-        custom int bridge:RefreshRate = 20
-        custom string[] bridge:Variables = ["MAIN.custom_struct.var1", "MAIN.custom_struct.var_array[0]"]
-        custom string beckhoff:AmsNetId = "127.0.0.1.1.1"
+        custom bool bridge:enable = true
+        custom int bridge:periodMs = 20
+        custom string[] bridge:variables = ["MAIN.custom_struct.var1", "MAIN.custom_struct.var_array[0]"]
+        custom string beckhoff:amsNetId = "127.0.0.1.1.1"
     }
 }
 ```
@@ -40,11 +40,11 @@ def Scope "PLC"
 | Attribute | Type | Default | Meaning |
 |---|---|---|---|
 | `bridge:driver` | string | | `beckhoff` selects this driver |
-| `bridge:Enable` | bool | `false` | Connect and poll |
-| `bridge:RefreshRate` | int | `20` | Read period in milliseconds |
-| `bridge:Variables` | string[] | `[]` | Variables read every period |
-| `bridge:MirrorToUsd` | bool | `true` in 0.3 | Mirror the values into the stage (see below) |
-| `beckhoff:AmsNetId` | string | `127.0.0.1.1.1` | AMS Net ID of the PLC |
+| `bridge:enable` | bool | `false` | Connect and poll |
+| `bridge:periodMs` | int | `20` | Read period in milliseconds |
+| `bridge:variables` | string[] | `[]` | Variables read every period |
+| `bridge:mirrorToUsd` | bool | `true` in 0.3 | Mirror the values into the stage (see below) |
+| `beckhoff:amsNetId` | string | `127.0.0.1.1.1` | AMS Net ID of the PLC |
 
 The 0.2.x form, `beckhoff_bridge:AmsNetId` / `Enable` / `RefreshRate` / `Variables` without `bridge:driver`, is still read in 0.3, with a deprecation warning.
 
@@ -79,7 +79,7 @@ manager.write_variable("MAIN.custom_struct.var1", 1)
 
 # The USD mirror
 
-Values read from the PLC appear as prims below the PLC prim in the stage's session layer: `MAIN.custom_struct.var1` on `PLC1` becomes `/PLC/PLC1/MAIN/custom_struct/var1`, and an array element `MAIN.axes[0].position` becomes `/PLC/PLC1/MAIN/axes/_0/position`. Each has `value`, `symbol`, and `write:value` / `write:pause` / `write:once` for writing back without Python. The mirror is on by default in 0.3 and off by default from 0.4; set `bridge:MirrorToUsd` on the prim to choose, and `bridge:MirrorSymbols` to limit it to a watch list.
+Values read from the PLC appear as prims below the PLC prim in the stage's session layer: `MAIN.custom_struct.var1` on `PLC1` becomes `/PLC/PLC1/MAIN/custom_struct/var1`, and an array element `MAIN.axes[0].position` becomes `/PLC/PLC1/MAIN/axes/_0/position`. Each has `value`, `symbol`, and `write:value` / `write:pause` / `write:once` for writing back without Python. The mirror is on by default in 0.3 and off by default from 0.4; set `bridge:mirrorToUsd` on the prim to choose, and `bridge:mirrorSymbols` to limit it to a watch list.
 
 # Status
 

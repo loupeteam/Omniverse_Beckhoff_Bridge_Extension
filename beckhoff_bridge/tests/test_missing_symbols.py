@@ -144,8 +144,10 @@ def test_a_lookup_that_fails_for_another_reason_raises(driver, plc):
 
 
 def test_write_rejects_the_unknown_symbol_and_writes_the_rest(driver, plc):
+    from plc_bridge import ERROR_MISSING
     rejected = driver.write({"GVL.a": 5, "GVL.bad": 1, "GVL.b": 0.5})
     assert rejected == {"GVL.bad": NOT_FOUND}
+    assert rejected["GVL.bad"].code == ERROR_MISSING     # found by the lookup after the 1808
     assert plc.known["GVL.a"] == 5 and plc.known["GVL.b"] == 0.5
     assert plc.writes[-1] == {"GVL.a": 5, "GVL.b": 0.5}
 
@@ -252,3 +254,50 @@ def test_all_missing_still_checks_the_link_every_scan(driver, plc):
     with pytest.raises(pyads.ADSError):
         driver.read(["X.a", "X.b"])
     assert not driver.is_connected()
+
+
+# region - symbol error codes
+
+def test_a_missing_symbol_carries_the_missing_code(driver, plc):
+    from plc_bridge import ERROR_MISSING
+    result = driver.read(["GVL.a", "GVL.bad"])
+    assert result.errors["GVL.bad"].code == ERROR_MISSING
+    again = driver.read(["GVL.a", "GVL.bad"])          # remembered, no round trip
+    assert again.errors["GVL.bad"].code == ERROR_MISSING
+    assert driver.write({"GVL.bad": 1})["GVL.bad"].code == ERROR_MISSING
+
+
+def test_a_slot_error_on_read_is_other_and_1808_is_missing(driver, plc):
+    from plc_bridge import ERROR_MISSING, ERROR_OTHER
+    plc.read_list_by_name = lambda names, structure_defs=None: {
+        "GVL.a": drv.ERROR_CODES[1793], "GVL.b": drv.ERROR_CODES[1808]}
+    result = driver.read(["GVL.a", "GVL.b"])
+    assert result.errors["GVL.a"].code == ERROR_OTHER
+    assert result.errors["GVL.b"].code == ERROR_MISSING
+
+
+def test_a_per_symbol_write_error_is_rejected(driver, plc):
+    from plc_bridge import ERROR_REJECTED
+    plc.write_list_by_name = lambda values: {"GVL.a": "no error", "GVL.b": drv.ERROR_CODES[1793]}
+    rejected = driver.write({"GVL.a": 1, "GVL.b": 2})
+    assert list(rejected) == ["GVL.b"]
+    assert rejected["GVL.b"].code == ERROR_REJECTED
+    assert rejected["GVL.b"] == drv.ERROR_CODES[1793]   # the ADS text is kept
+
+
+def test_a_per_symbol_1808_on_write_is_missing(driver, plc):
+    from plc_bridge import ERROR_MISSING
+    plc.write_list_by_name = lambda values: {"GVL.a": "no error", "GVL.b": drv.ERROR_CODES[1808]}
+    rejected = driver.write({"GVL.a": 1, "GVL.b": 2})
+    assert list(rejected) == ["GVL.b"] and rejected["GVL.b"].code == ERROR_MISSING
+
+
+def test_sample_missing_lists_the_1808_symbols(driver):
+    runtime = PlcRuntime(driver, name="T", enabled=True)
+    runtime.set_read_variables(["GVL.a", "GVL.bad", "GVL.worse"])
+    driver.connect = lambda: None
+    driver.disconnect = lambda: None
+    runtime.scan()
+    assert runtime.latest().missing == ("GVL.bad", "GVL.worse")
+
+# endregion

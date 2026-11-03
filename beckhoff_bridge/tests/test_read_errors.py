@@ -162,7 +162,7 @@ def test_runtime_drives_the_ads_driver(driver):
     seen = []
     plc.on_data(seen.append)
     plc.scan_read()
-    assert seen == [{"A": {"x": 1.5, "arr": [2.0]}, "B": True}]
+    assert seen == [{"A": {"x": 1.5, "arr": (2.0,)}, "B": True}]
 
 # endregion
 
